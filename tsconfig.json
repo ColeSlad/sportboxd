@@ -9,10 +9,10 @@
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"]
+      "~/*": ["./src/*"]
     },
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["app/**/*", "prisma/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }
