@@ -118,51 +118,80 @@ export async function bdlFetchGame(id: number): Promise<BDLGame> {
 export const CURRENT_SEASON = 2025
 const FALLBACK_SEASON = 2024
 
-// ─── Simple in-memory cache (survives filter changes in the same session) ─────
+// ─── Cache (in-memory + localStorage, 5-min TTL) ─────────────────────────────
+// In-memory: survives filter changes within a session without re-fetching.
+// localStorage: survives page refreshes — critical for staying under the
+// BDL free-tier rate limit of 5 req/min.
 
-const cache = new Map<string, Game[]>()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const memCache = new Map<string, Game[]>()
 
-export async function fetchGamesFromBDL(params: {
+function lsGet(key: string): Game[] | null {
+  try {
+    const raw = localStorage.getItem(`bdl:${key}`)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw) as { data: Game[]; ts: number }
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(`bdl:${key}`); return null }
+    return data
+  } catch { return null }
+}
+
+function lsSet(key: string, data: Game[]) {
+  try { localStorage.setItem(`bdl:${key}`, JSON.stringify({ data, ts: Date.now() })) }
+  catch { /* quota exceeded — ignore */ }
+}
+
+// In-flight deduplication: if the same key is already being fetched, reuse the promise
+const inFlight = new Map<string, Promise<Game[]>>()
+
+export function fetchGamesFromBDL(params: {
   type?: 'all' | 'playoffs' | 'finals' | 'regular' | 'ot'
   team?: string
-  per_page?: number
 }): Promise<Game[]> {
-  // Include today's date in the cache key so stale daily caches are busted automatically
-  const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
-  const cacheKey = JSON.stringify({ ...params, _date: todayStr })
-  if (cache.has(cacheKey)) return cache.get(cacheKey)!
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const cacheKey = JSON.stringify({ type: params.type, team: params.team, _date: todayStr })
 
-  // BDL paginates ascending by date with no reverse-sort option.
-  // The NBA plays ~15 games/day, so a 3-day window = ~45 games max — all fit
-  // in a single per_page=100 request, giving us the freshest possible results.
-  // Team-filtered views widen to 14 days since a team only plays every 2-3 days.
-  const since = new Date(today)
-  const windowDays = params.team ? 14 : 3
-  since.setDate(today.getDate() - windowDays)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  if (memCache.has(cacheKey)) return Promise.resolve(memCache.get(cacheKey)!)
+  const lsCached = lsGet(cacheKey)
+  if (lsCached) { memCache.set(cacheKey, lsCached); return Promise.resolve(lsCached) }
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey)!
 
-  const bdlParams: BDLGamesParams = {
-    start_date: fmt(since),
-    end_date: fmt(today),
-    per_page: params.per_page ?? 100,
+  const doFetch = async (): Promise<Game[]> => {
+    const today = new Date()
+    const fmt = (d: Date) => d.toISOString().slice(0, 10)
+
+    // BDL paginates ascending by date with no reverse-sort option.
+    // 3-day window = ~45 games max, all fit in per_page=100.
+    // Team-filtered views widen to 14 days (a team plays every 2-3 days).
+    const since = new Date(today)
+    since.setDate(today.getDate() - (params.team ? 14 : 3))
+
+    const bdlParams: BDLGamesParams = {
+      start_date: fmt(since),
+      end_date: fmt(today),
+      per_page: 100,
+    }
+
+    if (params.type === 'playoffs' || params.type === 'finals') {
+      bdlParams.postseason = true
+    } else if (params.type === 'regular') {
+      bdlParams.postseason = false
+    }
+
+    if (params.team) {
+      const teamId = BDL_TEAM_IDS[params.team]
+      if (teamId) bdlParams.team_ids = [teamId]
+    }
+
+    const { data } = await bdlFetchGames(bdlParams)
+    console.debug(`[BDL] ${data.length} games (${fmt(since)} – ${fmt(today)})`)
+    const games = data.map(bdlGameToGame)
+    memCache.set(cacheKey, games)
+    lsSet(cacheKey, games)
+    return games
   }
 
-  if (params.type === 'playoffs' || params.type === 'finals') {
-    bdlParams.postseason = true
-  } else if (params.type === 'regular') {
-    bdlParams.postseason = false
-  }
-
-  if (params.team) {
-    const teamId = BDL_TEAM_IDS[params.team]
-    if (teamId) bdlParams.team_ids = [teamId]
-  }
-
-  const { data } = await bdlFetchGames(bdlParams)
-  console.debug(`[BDL] fetched ${data.length} games (${fmt(since)} – ${fmt(today)})`)
-
-  const games = data.map(bdlGameToGame)
-  cache.set(cacheKey, games)
-  return games
+  const promise = doFetch().finally(() => inFlight.delete(cacheKey))
+  inFlight.set(cacheKey, promise)
+  return promise
 }

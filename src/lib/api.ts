@@ -50,16 +50,16 @@ export async function listGames(params: {
 }
 
 export async function getFeaturedGames() {
-  const [playoff, regular] = await Promise.all([
-    fetchGamesFromBDL({ type: 'playoffs' }),
-    fetchGamesFromBDL({ type: 'regular' }),
-  ])
-
+  // Single BDL call — split client-side to stay under the 5 req/min free tier
+  const all = await fetchGamesFromBDL({})
   const byDate = (arr: Game[]) =>
     [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
+  const playoff = all.filter((g) => g.type !== 'Regular Season')
+  const regular = all.filter((g) => g.type === 'Regular Season')
+
   const featured = playoff.length > 0 ? byDate(playoff).slice(0, 3) : byDate(regular).slice(0, 3)
-  const trending = byDate([...playoff, ...regular]).slice(0, 5)
+  const trending = byDate(all).slice(0, 5)
   const recent = byDate(regular).slice(0, 4)
 
   return { featured, trending, recent }
