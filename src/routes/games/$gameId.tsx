@@ -177,7 +177,7 @@ function GameDetailPage() {
 
         {tab === 'plays' && (
           <div className="fade-in">
-            <p className="text-[0.82rem] text-gray-600 mb-4">Rate individual plays — the key differentiator on Sportsboxd.</p>
+            <p className="text-[0.82rem] text-gray-600 mb-4">Rate individual plays — the key differentiator on Fixture.</p>
             <div className="flex flex-col gap-3">
               {plays.map((p) => <PlayCard key={p.id} play={p} gameId={game.id} />)}
             </div>

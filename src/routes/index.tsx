@@ -33,7 +33,7 @@ function HomePage() {
       <div className="py-14 text-center">
         <span className="badge badge-green mb-4 inline-flex">2023–24 Season</span>
         <h1 className="font-display gradient-text text-[clamp(3rem,10vw,5.5rem)] leading-none mb-3">
-          SPORTSBOXD
+          FIXTURE
         </h1>
         <p className="text-gray-500 text-base font-light tracking-wide">
           Rate every game. Log every play. Find your community.

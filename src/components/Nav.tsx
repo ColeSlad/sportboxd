@@ -16,7 +16,7 @@ export function Nav() {
         <div className="max-w-3xl mx-auto px-4 flex items-center h-13 gap-6">
           <Link to="/" className="flex items-center gap-2 flex-shrink-0">
             <span className="font-display text-[1.4rem] tracking-wider gradient-text">
-              SPORTSBOXD
+              FIXTURE
             </span>
           </Link>
 
