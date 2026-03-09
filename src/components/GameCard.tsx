@@ -26,7 +26,9 @@ export function GameCard({ game, size = 'md' }: GameCardProps) {
           <TeamLogo abbr={game.homeTeam} size={26} />
         </div>
         <div className="score-num text-lg">
-          {game.awayScore}–{game.homeScore}
+          {game.status === 'Final' || game.homeScore > 0 || game.awayScore > 0
+            ? `${game.awayScore}–${game.homeScore}`
+            : 'vs'}
         </div>
         <div className="mt-1.5 flex gap-1 flex-wrap">
           {game.type !== 'Regular Season' && (
@@ -86,20 +88,40 @@ export function GameCard({ game, size = 'md' }: GameCardProps) {
           </div>
         </div>
 
-        {/* Score */}
+        {/* Score / Status */}
         <div className="text-center flex-shrink-0">
-          <div className="score-num text-[2rem]">
-            <span className={game.awayScore > game.homeScore ? 'text-white' : 'text-gray-600'}>
-              {game.awayScore}
-            </span>
-            <span className="text-gray-700 mx-1">–</span>
-            <span className={game.homeScore > game.awayScore ? 'text-white' : 'text-gray-600'}>
-              {game.homeScore}
-            </span>
-          </div>
-          <div className="text-[0.6rem] tracking-widest text-gray-600 font-condensed font-bold uppercase">
-            FINAL{game.overtime ? '/OT' : ''}
-          </div>
+          {game.status === 'Final' ? (
+            <>
+              <div className="score-num text-[2rem]">
+                <span className={game.awayScore > game.homeScore ? 'text-white' : 'text-gray-600'}>
+                  {game.awayScore}
+                </span>
+                <span className="text-gray-700 mx-1">–</span>
+                <span className={game.homeScore > game.awayScore ? 'text-white' : 'text-gray-600'}>
+                  {game.homeScore}
+                </span>
+              </div>
+              <div className="text-[0.6rem] tracking-widest text-gray-600 font-condensed font-bold uppercase">
+                FINAL{game.overtime ? '/OT' : ''}
+              </div>
+            </>
+          ) : game.homeScore > 0 || game.awayScore > 0 ? (
+            <>
+              <div className="score-num text-[2rem]">
+                <span className="text-white">{game.awayScore}</span>
+                <span className="text-gray-700 mx-1">–</span>
+                <span className="text-white">{game.homeScore}</span>
+              </div>
+              <div className="text-[0.6rem] tracking-widest text-accent font-condensed font-bold uppercase animate-pulse">
+                {game.status}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-condensed font-bold text-[1rem] text-gray-300">VS</div>
+              <div className="text-[0.65rem] text-gray-500 font-condensed mt-0.5">{game.status}</div>
+            </>
+          )}
         </div>
 
         {/* Home */}

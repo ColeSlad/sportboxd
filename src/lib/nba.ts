@@ -26,14 +26,24 @@ export const BDL_TEAM_IDS: Record<string, number> = {
 
 // ─── Type conversion ──────────────────────────────────────────────────────────
 
+// BDL status values:
+//   "Final"                    → completed game
+//   "2026-03-09T23:00:00.000Z" → upcoming (ISO datetime string)
+//   "Halftime", "3rd Qtr 5:23" → in-progress
+export function normalizeStatus(raw: string): string {
+  if (raw === 'Final') return 'Final'
+  // ISO datetime = upcoming; convert to local time string
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    const d = new Date(raw)
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+  }
+  return raw // in-progress quarter/time string
+}
+
 export function bdlGameToGame(g: BDLGame): Game {
   const homeAbbr = normalizeBDLAbbr(g.home_team.abbreviation)
   const awayAbbr = normalizeBDLAbbr(g.visitor_team.abbreviation)
-
-  // BDL marks postseason games with postseason=true; Finals games don't get
-  // a separate flag — we infer from status string when available.
   const type: Game['type'] = g.postseason ? 'Playoffs' : 'Regular Season'
-
   const homeTeam = getTeam(homeAbbr)
   const awayTeam = getTeam(awayAbbr)
 
@@ -48,9 +58,7 @@ export function bdlGameToGame(g: BDLGame): Game {
     type,
     gameLabel: null,
     overtime: g.period > 4,
-    status: g.status,
-    // Community stats — these come from our DB once wired up.
-    // For now, default to 0 so real games still render.
+    status: normalizeStatus(g.status),
     avgRating: 0,
     reviewCount: 0,
     viewCount: 0,
@@ -152,14 +160,9 @@ export async function fetchGamesFromBDL(params: {
   }
 
   const { data } = await bdlFetchGames(bdlParams)
-  console.debug(`[BDL] fetched ${data.length} raw games (${fmt(since)} – ${fmt(today)})`)
+  console.debug(`[BDL] fetched ${data.length} games (${fmt(since)} – ${fmt(today)})`)
 
-  // Only show completed games; BDL also returns future/in-progress games
-  const completed = data
-    .filter((g) => g.status === 'Final' && (g.home_team_score > 0 || g.visitor_team_score > 0))
-    .map(bdlGameToGame)
-
-  console.debug(`[BDL] ${completed.length} completed games after filter`)
-  cache.set(cacheKey, completed)
-  return completed
+  const games = data.map(bdlGameToGame)
+  cache.set(cacheKey, games)
+  return games
 }

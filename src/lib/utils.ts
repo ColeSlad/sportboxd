@@ -6,11 +6,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  // Append T12:00:00 so date-only strings (YYYY-MM-DD) aren't parsed as UTC
+  // midnight and then shifted back a day in US timezones.
+  const d = dateStr.includes('T') ? new Date(dateStr) : new Date(`${dateStr}T12:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function formatRelativeTime(dateStr: string) {
