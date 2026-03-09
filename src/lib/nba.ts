@@ -125,12 +125,12 @@ export async function fetchGamesFromBDL(params: {
   const cacheKey = JSON.stringify({ ...params, _date: todayStr })
   if (cache.has(cacheKey)) return cache.get(cacheKey)!
 
-  // BDL paginates ascending by date. Use a short window (10 days) so that
-  // per_page=100 comfortably covers all games in that period (~150 total in
-  // the NBA) without burying the most recent ones at the back of a large page.
-  // For team-filtered views we widen to 30 days since fewer games per team.
+  // BDL paginates ascending by date with no reverse-sort option.
+  // The NBA plays ~15 games/day, so a 3-day window = ~45 games max — all fit
+  // in a single per_page=100 request, giving us the freshest possible results.
+  // Team-filtered views widen to 14 days since a team only plays every 2-3 days.
   const since = new Date(today)
-  const windowDays = params.team ? 30 : 10
+  const windowDays = params.team ? 14 : 3
   since.setDate(today.getDate() - windowDays)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
 
