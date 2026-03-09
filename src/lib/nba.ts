@@ -119,15 +119,19 @@ export async function fetchGamesFromBDL(params: {
   team?: string
   per_page?: number
 }): Promise<Game[]> {
-  const cacheKey = JSON.stringify(params)
+  // Include today's date in the cache key so stale daily caches are busted automatically
+  const today = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
+  const cacheKey = JSON.stringify({ ...params, _date: todayStr })
   if (cache.has(cacheKey)) return cache.get(cacheKey)!
 
-  // BDL paginates in ascending date order, so fetching by season gives us the
-  // oldest games first. Instead, anchor to a recent date window so we always
-  // get the last ~60 days of games at the top.
-  const today = new Date()
+  // BDL paginates ascending by date. Use a short window (10 days) so that
+  // per_page=100 comfortably covers all games in that period (~150 total in
+  // the NBA) without burying the most recent ones at the back of a large page.
+  // For team-filtered views we widen to 30 days since fewer games per team.
   const since = new Date(today)
-  since.setDate(today.getDate() - 60)
+  const windowDays = params.team ? 30 : 10
+  since.setDate(today.getDate() - windowDays)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
 
   const bdlParams: BDLGamesParams = {

@@ -7,19 +7,15 @@
  */
 
 import {
-  MOCK_GAMES,
   MOCK_USERS,
-  getGame,
   getPlaysForGame,
   getReviewsForGame,
   getReviewsForUser,
   getUserByUsername,
   buildActivityFeed,
 } from './mock-data'
-import { fetchGamesFromBDL, bdlFetchGame, bdlGameToGame, CURRENT_SEASON } from './nba'
+import { fetchGamesFromBDL, bdlFetchGame, bdlGameToGame } from './nba'
 import type { Game } from './types'
-
-const HAS_BDL_KEY = Boolean(import.meta.env.VITE_BALLDONTLIE_API_KEY)
 
 // ─── Games ──────────────────────────────────────────────────────────────────
 
@@ -29,20 +25,9 @@ export async function listGames(params: {
   search?: string
   sort?: 'date' | 'rating' | 'reviews'
 }): Promise<Game[]> {
-  let games: Game[]
+  let games = await fetchGamesFromBDL({ type: params.type, team: params.team })
 
-  if (HAS_BDL_KEY) {
-    try {
-      games = await fetchGamesFromBDL({ type: params.type, team: params.team, per_page: 50 })
-    } catch (err) {
-      console.warn('[listGames] BDL fetch failed, falling back to mock data:', err)
-      games = [...MOCK_GAMES]
-    }
-  } else {
-    games = [...MOCK_GAMES]
-  }
-
-  // OT filter — BDL doesn't support this server-side, apply client-side
+  // OT filter — BDL doesn't expose this server-side, apply client-side
   if (params.type === 'ot') games = games.filter((g) => g.overtime)
 
   if (params.search) {
@@ -65,71 +50,26 @@ export async function listGames(params: {
 }
 
 export async function getFeaturedGames() {
-  if (!HAS_BDL_KEY) {
-    const byRating = [...MOCK_GAMES].sort((a, b) => b.avgRating - a.avgRating)
-    return {
-      featured: byRating.slice(0, 3),
-      trending: byRating.slice(0, 5),
-      recent: [...MOCK_GAMES]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 4),
-    }
-  }
+  const [playoff, regular] = await Promise.all([
+    fetchGamesFromBDL({ type: 'playoffs' }),
+    fetchGamesFromBDL({ type: 'regular' }),
+  ])
 
-  try {
-    // Fetch recent completed games — postseason first for "featured", then regular season
-    const [playoff, regular] = await Promise.all([
-      fetchGamesFromBDL({ type: 'playoffs', per_page: 10 }),
-      fetchGamesFromBDL({ type: 'regular', per_page: 40 }),
-    ])
+  const byDate = (arr: Game[]) =>
+    [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-    const byDate = (arr: Game[]) =>
-      [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const featured = playoff.length > 0 ? byDate(playoff).slice(0, 3) : byDate(regular).slice(0, 3)
+  const trending = byDate([...playoff, ...regular]).slice(0, 5)
+  const recent = byDate(regular).slice(0, 4)
 
-    // Featured: latest playoff games if any exist this season, else recent regular season
-    const featured = playoff.length > 0 ? byDate(playoff).slice(0, 3) : byDate(regular).slice(0, 3)
-    // Trending: a mix — most recent 5 from either bucket
-    const trending = byDate([...playoff, ...regular]).slice(0, 5)
-    const recent = byDate(regular).slice(0, 4)
-
-    return { featured, trending, recent }
-  } catch (err) {
-    console.warn('[getFeaturedGames] BDL fetch failed, falling back to mock data:', err)
-    const byRating = [...MOCK_GAMES].sort((a, b) => b.avgRating - a.avgRating)
-    return {
-      featured: byRating.slice(0, 3),
-      trending: byRating.slice(0, 5),
-      recent: [...MOCK_GAMES]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 4),
-    }
-  }
+  return { featured, trending, recent }
 }
 
 export async function getGameDetail(id: number) {
-  let game: Game | undefined
-
-  if (HAS_BDL_KEY) {
-    try {
-      const bdlGame = await bdlFetchGame(id)
-      game = bdlGameToGame(bdlGame)
-    } catch (err) {
-      console.warn(`[getGameDetail] BDL fetch failed for game ${id}, trying mock:`, err)
-    }
-  }
-
-  // Fall back to mock if BDL failed or key not set
-  if (!game) {
-    game = getGame(id)
-    if (!game) throw new Error(`Game ${id} not found`)
-  }
-
+  const bdlGame = await bdlFetchGame(id)
+  const game = bdlGameToGame(bdlGame)
   return { game, plays: getPlaysForGame(id) }
 }
-
-// ─── Season helper ────────────────────────────────────────────────────────────
-
-export { CURRENT_SEASON }
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 
