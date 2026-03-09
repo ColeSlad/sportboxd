@@ -1,10 +1,9 @@
 /**
- * Client-side data access layer (replaces TanStack Start server functions).
+ * Client-side data access layer.
  *
- * Currently backed by mock data. To connect real backends:
- *   - Games/box scores: balldontlie.io API  →  src/lib/nba.ts
- *   - Reviews/users: your DB via an API route (Next.js, Hono, Express, etc.)
- *   - Play-by-play: nba.com CDN or SportRadar
+ * Games/box scores: balldontlie.io API  →  src/lib/nba.ts
+ * Reviews/users:   still mock — wire to your DB via an API route when ready
+ * Play-by-play:    still mock — SportRadar or nba.com CDN for real data
  */
 
 import {
@@ -17,7 +16,10 @@ import {
   getUserByUsername,
   buildActivityFeed,
 } from './mock-data'
+import { fetchGamesFromBDL, bdlFetchGame, bdlGameToGame, CURRENT_SEASON } from './nba'
 import type { Game } from './types'
+
+const HAS_BDL_KEY = Boolean(import.meta.env.VITE_BALLDONTLIE_API_KEY)
 
 // ─── Games ──────────────────────────────────────────────────────────────────
 
@@ -27,17 +29,21 @@ export async function listGames(params: {
   search?: string
   sort?: 'date' | 'rating' | 'reviews'
 }): Promise<Game[]> {
-  let games = [...MOCK_GAMES]
+  let games: Game[]
 
-  const type = params.type ?? 'all'
-  if (type === 'playoffs') games = games.filter((g) => g.type === 'Playoffs')
-  else if (type === 'finals') games = games.filter((g) => g.type === 'Finals')
-  else if (type === 'regular') games = games.filter((g) => g.type === 'Regular Season')
-  else if (type === 'ot') games = games.filter((g) => g.overtime)
-
-  if (params.team) {
-    games = games.filter((g) => g.homeTeam === params.team || g.awayTeam === params.team)
+  if (HAS_BDL_KEY) {
+    try {
+      games = await fetchGamesFromBDL({ type: params.type, team: params.team, per_page: 50 })
+    } catch (err) {
+      console.warn('[listGames] BDL fetch failed, falling back to mock data:', err)
+      games = [...MOCK_GAMES]
+    }
+  } else {
+    games = [...MOCK_GAMES]
   }
+
+  // OT filter — BDL doesn't support this server-side, apply client-side
+  if (params.type === 'ot') games = games.filter((g) => g.overtime)
 
   if (params.search) {
     const q = params.search.toLowerCase()
@@ -59,25 +65,76 @@ export async function listGames(params: {
 }
 
 export async function getFeaturedGames() {
-  const byRating = [...MOCK_GAMES].sort((a, b) => b.avgRating - a.avgRating)
-  return {
-    featured: byRating.slice(0, 3),
-    trending: byRating.slice(0, 5),
-    recent: [...MOCK_GAMES]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 4),
+  if (!HAS_BDL_KEY) {
+    const byRating = [...MOCK_GAMES].sort((a, b) => b.avgRating - a.avgRating)
+    return {
+      featured: byRating.slice(0, 3),
+      trending: byRating.slice(0, 5),
+      recent: [...MOCK_GAMES]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 4),
+    }
+  }
+
+  try {
+    // Fetch recent completed games — postseason first for "featured", then regular season
+    const [playoff, regular] = await Promise.all([
+      fetchGamesFromBDL({ type: 'playoffs', per_page: 10 }),
+      fetchGamesFromBDL({ type: 'regular', per_page: 40 }),
+    ])
+
+    const byDate = (arr: Game[]) =>
+      [...arr].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    // Featured: latest playoff games if any exist this season, else recent regular season
+    const featured = playoff.length > 0 ? byDate(playoff).slice(0, 3) : byDate(regular).slice(0, 3)
+    // Trending: a mix — most recent 5 from either bucket
+    const trending = byDate([...playoff, ...regular]).slice(0, 5)
+    const recent = byDate(regular).slice(0, 4)
+
+    return { featured, trending, recent }
+  } catch (err) {
+    console.warn('[getFeaturedGames] BDL fetch failed, falling back to mock data:', err)
+    const byRating = [...MOCK_GAMES].sort((a, b) => b.avgRating - a.avgRating)
+    return {
+      featured: byRating.slice(0, 3),
+      trending: byRating.slice(0, 5),
+      recent: [...MOCK_GAMES]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 4),
+    }
   }
 }
 
 export async function getGameDetail(id: number) {
-  const game = getGame(id)
-  if (!game) throw new Error(`Game ${id} not found`)
+  let game: Game | undefined
+
+  if (HAS_BDL_KEY) {
+    try {
+      const bdlGame = await bdlFetchGame(id)
+      game = bdlGameToGame(bdlGame)
+    } catch (err) {
+      console.warn(`[getGameDetail] BDL fetch failed for game ${id}, trying mock:`, err)
+    }
+  }
+
+  // Fall back to mock if BDL failed or key not set
+  if (!game) {
+    game = getGame(id)
+    if (!game) throw new Error(`Game ${id} not found`)
+  }
+
   return { game, plays: getPlaysForGame(id) }
 }
+
+// ─── Season helper ────────────────────────────────────────────────────────────
+
+export { CURRENT_SEASON }
 
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 
 export async function fetchGameReviews(gameId: number) {
+  // TODO: GET /api/reviews?gameId=X  →  db.review.findMany({ where: { gameId } })
   return getReviewsForGame(gameId)
 }
 
@@ -116,12 +173,14 @@ export async function toggleLike(reviewId: string) {
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export async function fetchProfile(username: string) {
+  // TODO: GET /api/users/:username  →  db.user.findUnique({ where: { username } })
   const user = getUserByUsername(username)
   if (!user) throw new Error(`User @${username} not found`)
   return { user, reviews: getReviewsForUser(user.id) }
 }
 
 export async function fetchFeed(userId: string) {
+  // TODO: GET /api/feed  →  db query on reviews + play_ratings joined to users
   const me = MOCK_USERS.find((u) => u.id === userId)
   if (!me) return []
   return buildActivityFeed(me.following)
