@@ -1,5 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { Home, Search, Radio, User } from 'lucide-react'
+import { useAuth } from '~/lib/auth-context'
+import { getUserInitials, getUserColor } from '~/lib/supabase'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
@@ -9,6 +11,8 @@ const NAV_ITEMS = [
 ] as const
 
 export function Nav() {
+  const { user, signOut } = useAuth()
+
   return (
     <>
       {/* Desktop top nav */}
@@ -34,16 +38,24 @@ export function Nav() {
             ))}
           </div>
 
-          {/* Current user — replace with real auth session */}
           <div className="ml-auto flex items-center gap-2">
-            <Link to="/profile/fadeaway_frank">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-condensed font-bold flex-shrink-0"
-                style={{ background: '#7c3aed' }}
-              >
-                FO
-              </div>
-            </Link>
+            {user ? (
+              <>
+                <Link to="/profile/$username" params={{ username: user.email?.split('@')[0] ?? 'me' }}>
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-condensed font-bold flex-shrink-0"
+                    style={{ background: getUserColor(user.id) }}
+                  >
+                    {getUserInitials(user.email ?? 'U')}
+                  </div>
+                </Link>
+                <button onClick={() => signOut()} className="btn btn-ghost btn-sm hidden sm:block">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="btn btn-primary btn-sm">Sign in</Link>
+            )}
           </div>
         </div>
       </nav>

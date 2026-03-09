@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as BrowseRouteImport } from './routes/browse'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileUsernameRouteImport } from './routes/profile/$username'
 import { Route as GamesGameIdRouteImport } from './routes/games/$gameId'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedRoute = FeedRouteImport.update({
   id: '/feed',
   path: '/feed',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/browse': typeof BrowseRoute
   '/feed': typeof FeedRoute
+  '/login': typeof LoginRoute
   '/games/$gameId': typeof GamesGameIdRoute
   '/profile/$username': typeof ProfileUsernameRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/browse': typeof BrowseRoute
   '/feed': typeof FeedRoute
+  '/login': typeof LoginRoute
   '/games/$gameId': typeof GamesGameIdRoute
   '/profile/$username': typeof ProfileUsernameRoute
 }
@@ -60,19 +68,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/browse': typeof BrowseRoute
   '/feed': typeof FeedRoute
+  '/login': typeof LoginRoute
   '/games/$gameId': typeof GamesGameIdRoute
   '/profile/$username': typeof ProfileUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/browse' | '/feed' | '/games/$gameId' | '/profile/$username'
+  fullPaths:
+    | '/'
+    | '/browse'
+    | '/feed'
+    | '/login'
+    | '/games/$gameId'
+    | '/profile/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/browse' | '/feed' | '/games/$gameId' | '/profile/$username'
+  to:
+    | '/'
+    | '/browse'
+    | '/feed'
+    | '/login'
+    | '/games/$gameId'
+    | '/profile/$username'
   id:
     | '__root__'
     | '/'
     | '/browse'
     | '/feed'
+    | '/login'
     | '/games/$gameId'
     | '/profile/$username'
   fileRoutesById: FileRoutesById
@@ -81,12 +103,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BrowseRoute: typeof BrowseRoute
   FeedRoute: typeof FeedRoute
+  LoginRoute: typeof LoginRoute
   GamesGameIdRoute: typeof GamesGameIdRoute
   ProfileUsernameRoute: typeof ProfileUsernameRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feed': {
       id: '/feed'
       path: '/feed'
@@ -129,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BrowseRoute: BrowseRoute,
   FeedRoute: FeedRoute,
+  LoginRoute: LoginRoute,
   GamesGameIdRoute: GamesGameIdRoute,
   ProfileUsernameRoute: ProfileUsernameRoute,
 }

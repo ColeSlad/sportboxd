@@ -8,14 +8,16 @@ import { UserAvatar } from '~/components/UserAvatar'
 import { StarRating } from '~/components/StarRating'
 import { GameCard } from '~/components/GameCard'
 import { MOCK_GAMES, MOCK_USERS } from '~/lib/mock-data'
+import { supabase } from '~/lib/supabase'
 import type { Review } from '~/lib/types'
-
-const ME = MOCK_USERS[0]!
 
 export const Route = createFileRoute('/profile/$username')({
   loader: async ({ params }) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const sessionUsername = session?.user.email?.split('@')[0] ?? null
     try {
-      return await fetchProfile(params.username)
+      const data = await fetchProfile(params.username)
+      return { ...data, sessionUsername }
     } catch {
       throw notFound()
     }
@@ -27,9 +29,9 @@ export const Route = createFileRoute('/profile/$username')({
 type ProfileTab = 'games' | 'reviews'
 
 function ProfilePage() {
-  const { user, reviews } = Route.useLoaderData()
-  const isMe = user.id === ME.id
-  const [following, setFollowing] = useState(ME.following.includes(user.id))
+  const { user, reviews, sessionUsername } = Route.useLoaderData()
+  const isMe = !!sessionUsername && (user.username === sessionUsername || user.id === MOCK_USERS[0]!.id && sessionUsername === MOCK_USERS[0]!.username)
+  const [following, setFollowing] = useState(MOCK_USERS[0]!.following.includes(user.id))
   const [tab, setTab] = useState<ProfileTab>('games')
 
   const loggedGames = reviews.map((r) => MOCK_GAMES.find((g) => g.id === r.gameId)).filter(Boolean)
