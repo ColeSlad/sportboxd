@@ -1,12 +1,11 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
-import { fetchFeed, followUser } from '~/lib/api'
+import { fetchFeed, fetchSuggestedUsers, followUser } from '~/lib/api'
 import { UserAvatar } from '~/components/UserAvatar'
 import { StarRating } from '~/components/StarRating'
 import { TeamLogo } from '~/components/TeamLogo'
 import { getTeam } from '~/lib/teams'
 import { formatRelativeTime, formatNumber } from '~/lib/utils'
-import { MOCK_USERS } from '~/lib/mock-data'
 import { supabase } from '~/lib/supabase'
 import type { ActivityItem, AppUser } from '~/lib/types'
 
@@ -14,9 +13,10 @@ export const Route = createFileRoute('/feed')({
   loader: async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw redirect({ to: '/login' })
-    // Feed shows mock activity for now — replace with real DB query once Prisma is wired
-    const feed = await fetchFeed(MOCK_USERS[0]!.id)
-    const suggested = MOCK_USERS.filter((u) => u.id !== MOCK_USERS[0]!.id)
+    const [feed, suggested] = await Promise.all([
+      fetchFeed(session.user.id),
+      fetchSuggestedUsers(session.user.id),
+    ])
     return { feed, suggested }
   },
   component: FeedPage,

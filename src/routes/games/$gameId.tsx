@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { getGameDetail, fetchGameReviews, submitReview } from '~/lib/api'
 import { getTeam } from '~/lib/teams'
@@ -7,8 +7,7 @@ import { TeamLogo } from '~/components/TeamLogo'
 import { StarRating } from '~/components/StarRating'
 import { ReviewCard } from '~/components/ReviewCard'
 import { PlayCard } from '~/components/PlayCard'
-import { UserAvatar } from '~/components/UserAvatar'
-import { MOCK_USERS } from '~/lib/mock-data'
+import { useAuth } from '~/lib/auth-context'
 import { ArrowLeft, X } from 'lucide-react'
 import type { Review } from '~/lib/types'
 
@@ -30,6 +29,8 @@ type Tab = 'reviews' | 'plays' | 'boxscore'
 
 function GameDetailPage() {
   const { game, plays, reviews: initialReviews } = Route.useLoaderData()
+  const { user: authUser } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('reviews')
   const [showLogModal, setShowLogModal] = useState(false)
   const [isLogged, setIsLogged] = useState(false)
@@ -44,9 +45,14 @@ function GameDetailPage() {
     return { star, count, pct: reviews.length ? (count / reviews.length) * 100 : 0 }
   })
 
+  function openLogModal() {
+    if (!authUser) { navigate({ to: '/login' }); return }
+    setShowLogModal(true)
+  }
+
   async function handleSubmitReview(rating: number, text: string) {
     const newReview = await submitReview({ gameId: game.id, rating, text: text || undefined })
-    setReviews((prev) => [{ ...newReview, user: MOCK_USERS[0]! }, ...prev])
+    setReviews((prev) => [newReview, ...prev])
     setIsLogged(true)
     setMyRating(rating)
     setShowLogModal(false)
@@ -130,7 +136,7 @@ function GameDetailPage() {
                   <StarRating value={myRating} readOnly size="sm" accent />
                 </>
               ) : (
-                <button className="btn btn-primary w-full" onClick={() => setShowLogModal(true)}>+ Log Game</button>
+                <button className="btn btn-primary w-full" onClick={openLogModal}>+ Log Game</button>
               )}
               <span className="text-[0.68rem] text-gray-700 text-center">{formatNumber(game.viewCount)} watched</span>
             </div>
@@ -161,7 +167,7 @@ function GameDetailPage() {
             {!isLogged && (
               <div className="card border-dashed p-4 mb-4 text-center">
                 <p className="text-gray-600 text-sm mb-3">Watched this game? Share your take.</p>
-                <button className="btn btn-primary btn-sm" onClick={() => setShowLogModal(true)}>Write a Review</button>
+                <button className="btn btn-primary btn-sm" onClick={openLogModal}>Write a Review</button>
               </div>
             )}
             <div className="flex flex-col gap-3">
