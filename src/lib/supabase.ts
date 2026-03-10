@@ -16,5 +16,5 @@ export function getUserInitials(email: string): string {
 const AVATAR_COLORS = ['#7c3aed', '#0891b2', '#059669', '#d97706', '#dc2626', '#6366f1', '#c026d3']
 export function getUserColor(id: string): string {
   const idx = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % AVATAR_COLORS.length
-  return AVATAR_COLORS[idx]
+  return AVATAR_COLORS[idx]!
 }

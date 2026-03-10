@@ -3,15 +3,15 @@ import { Home, Search, Radio, User } from 'lucide-react'
 import { useAuth } from '~/lib/auth-context'
 import { getUserInitials, getUserColor } from '~/lib/supabase'
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Home', icon: Home },
-  { to: '/browse', label: 'Browse', icon: Search },
-  { to: '/feed', label: 'Feed', icon: Radio },
-  { to: '/profile/fadeaway_frank', label: 'Profile', icon: User },
-] as const
+const STATIC_NAV = [
+  { to: '/' as const, label: 'Home', icon: Home },
+  { to: '/browse' as const, label: 'Browse', icon: Search },
+  { to: '/feed' as const, label: 'Feed', icon: Radio },
+]
 
 export function Nav() {
   const { user, signOut } = useAuth()
+  const profileUsername = user?.email?.split('@')[0] ?? null
 
   return (
     <>
@@ -25,7 +25,7 @@ export function Nav() {
           </Link>
 
           <div className="hidden sm:flex items-center gap-5 flex-1">
-            {NAV_ITEMS.map((item) => (
+            {STATIC_NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -39,9 +39,9 @@ export function Nav() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {user ? (
+            {user && profileUsername ? (
               <>
-                <Link to="/profile/$username" params={{ username: user.email?.split('@')[0] ?? 'me' }}>
+                <Link to="/profile/$username" params={{ username: profileUsername }}>
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-condensed font-bold flex-shrink-0"
                     style={{ background: getUserColor(user.id) }}
@@ -62,7 +62,7 @@ export function Nav() {
 
       {/* Mobile bottom nav */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-bg/95 backdrop-blur-md border-t border-border flex pb-safe">
-        {NAV_ITEMS.map((item) => (
+        {STATIC_NAV.map((item) => (
           <Link
             key={item.to}
             to={item.to}
@@ -76,6 +76,26 @@ export function Nav() {
             </span>
           </Link>
         ))}
+        {user && profileUsername ? (
+          <Link
+            to="/profile/$username"
+            params={{ username: profileUsername }}
+            className="flex-1 flex flex-col items-center gap-1 py-2 text-gray-600 transition-colors duration-200"
+            activeProps={{ className: 'flex-1 flex flex-col items-center gap-1 py-2 text-accent transition-colors duration-200' }}
+          >
+            <User size={18} />
+            <span className="font-condensed font-bold tracking-wider uppercase text-[0.58rem]">Profile</span>
+          </Link>
+        ) : (
+          <Link
+            to="/login"
+            className="flex-1 flex flex-col items-center gap-1 py-2 text-gray-600 transition-colors duration-200"
+            activeProps={{ className: 'flex-1 flex flex-col items-center gap-1 py-2 text-accent transition-colors duration-200' }}
+          >
+            <User size={18} />
+            <span className="font-condensed font-bold tracking-wider uppercase text-[0.58rem]">Sign in</span>
+          </Link>
+        )}
       </nav>
     </>
   )

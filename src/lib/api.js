@@ -107,6 +107,11 @@ export async function submitReview(data) {
         throw error;
     return dbRowToReview(row);
 }
+export async function submitPlayRating(data) {
+    // TODO: upsert into play_ratings table
+    console.log('[submitPlayRating] stub — wire to Supabase:', data);
+    return { id: `pr-${Date.now()}`, ...data, userId: 'anon', note: data.note ?? null };
+}
 export async function toggleLike(reviewId) {
     // TODO: upsert/delete from review_likes table
     console.log('[toggleLike] stub:', reviewId);

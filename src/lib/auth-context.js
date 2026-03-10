@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
         });
         return () => subscription.unsubscribe();
     }, []);
-    return (_jsx(AuthContext.Provider, { value: { user, loading, signOut: () => supabase.auth.signOut() }, children: children }));
+    return (_jsx(AuthContext.Provider, { value: { user, loading, signOut: async () => { await supabase.auth.signOut(); } }, children: children }));
 }
 export function useAuth() {
     return useContext(AuthContext);

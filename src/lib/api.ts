@@ -140,6 +140,17 @@ export async function submitReview(data: {
   return dbRowToReview(row as Record<string, unknown>)
 }
 
+export async function submitPlayRating(data: {
+  gameId: number
+  playId: string
+  rating: number
+  note?: string
+}) {
+  // TODO: upsert into play_ratings table
+  console.log('[submitPlayRating] stub — wire to Supabase:', data)
+  return { id: `pr-${Date.now()}`, ...data, userId: 'anon', note: data.note ?? null }
+}
+
 export async function toggleLike(reviewId: string) {
   // TODO: upsert/delete from review_likes table
   console.log('[toggleLike] stub:', reviewId)
