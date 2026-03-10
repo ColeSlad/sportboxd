@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { getGameDetail, fetchGameReviews, submitReview } from '~/lib/api'
+import { supabase } from '~/lib/supabase'
 import { getTeam } from '~/lib/teams'
 import { formatDate, formatNumber } from '~/lib/utils'
 import { TeamLogo } from '~/components/TeamLogo'
@@ -15,11 +16,15 @@ export const Route = createFileRoute('/games/$gameId')({
   loader: async ({ params }) => {
     const id = Number(params.gameId)
     if (isNaN(id)) throw notFound()
-    const [detail, reviews] = await Promise.all([
+    const [detail, reviews, { data: { session } }] = await Promise.all([
       getGameDetail(id),
       fetchGameReviews(id),
+      supabase.auth.getSession(),
     ])
-    return { ...detail, reviews }
+    const myReview = session
+      ? reviews.find((r) => r.userId === session.user.id) ?? null
+      : null
+    return { ...detail, reviews, myReview }
   },
   component: GameDetailPage,
   notFoundComponent: () => <div className="text-center py-24 text-gray-500">Game not found.</div>,
@@ -28,13 +33,13 @@ export const Route = createFileRoute('/games/$gameId')({
 type Tab = 'reviews' | 'plays' | 'boxscore'
 
 function GameDetailPage() {
-  const { game, plays, reviews: initialReviews } = Route.useLoaderData()
+  const { game, plays, reviews: initialReviews, myReview } = Route.useLoaderData()
   const { user: authUser } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('reviews')
   const [showLogModal, setShowLogModal] = useState(false)
-  const [isLogged, setIsLogged] = useState(false)
-  const [myRating, setMyRating] = useState(0)
+  const [isLogged, setIsLogged] = useState(!!myReview)
+  const [myRating, setMyRating] = useState(myReview?.rating ?? 0)
   const [reviews, setReviews] = useState<Review[]>(initialReviews)
 
   const home = getTeam(game.homeTeam)
@@ -52,7 +57,11 @@ function GameDetailPage() {
 
   async function handleSubmitReview(rating: number, text: string) {
     const newReview = await submitReview({ gameId: game.id, rating, text: text || undefined })
-    setReviews((prev) => [newReview, ...prev])
+    setReviews((prev) =>
+      prev.some((r) => r.userId === newReview.userId)
+        ? prev.map((r) => (r.userId === newReview.userId ? newReview : r))
+        : [newReview, ...prev],
+    )
     setIsLogged(true)
     setMyRating(rating)
     setShowLogModal(false)
@@ -206,19 +215,27 @@ function GameDetailPage() {
       </div>
 
       {showLogModal && (
-        <LogModal game={game} onClose={() => setShowLogModal(false)} onSubmit={handleSubmitReview} />
+        <LogModal
+          game={game}
+          initialRating={myRating}
+          initialText={myReview?.text ?? ''}
+          onClose={() => setShowLogModal(false)}
+          onSubmit={handleSubmitReview}
+        />
       )}
     </div>
   )
 }
 
-function LogModal({ game, onClose, onSubmit }: {
+function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit }: {
   game: ReturnType<typeof Route.useLoaderData>['game']
+  initialRating?: number
+  initialText?: string
   onClose: () => void
   onSubmit: (rating: number, text: string) => Promise<void>
 }) {
-  const [rating, setRating] = useState(0)
-  const [text, setText] = useState('')
+  const [rating, setRating] = useState(initialRating)
+  const [text, setText] = useState(initialText)
   const [saving, setSaving] = useState(false)
   const LABELS = ['', 'Boring — skip it', 'Below average', 'Worth watching', 'Really good', 'All-time classic']
 
