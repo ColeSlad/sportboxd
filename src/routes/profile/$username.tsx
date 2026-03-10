@@ -8,8 +8,8 @@ import { UserAvatar } from '~/components/UserAvatar'
 import { StarRating } from '~/components/StarRating'
 import { GameCard } from '~/components/GameCard'
 import { MOCK_GAMES, MOCK_USERS } from '~/lib/mock-data'
-import { supabase } from '~/lib/supabase'
-import type { Review } from '~/lib/types'
+import { supabase, getUserColor } from '~/lib/supabase'
+import type { AppUser, Review } from '~/lib/types'
 
 export const Route = createFileRoute('/profile/$username')({
   loader: async ({ params }) => {
@@ -19,6 +19,24 @@ export const Route = createFileRoute('/profile/$username')({
       const data = await fetchProfile(params.username)
       return { ...data, sessionUsername }
     } catch {
+      // If this is the logged-in user's own profile, build it from session data
+      if (session && params.username === sessionUsername) {
+        const minimalUser: AppUser = {
+          id: session.user.id,
+          username: sessionUsername,
+          displayName: session.user.user_metadata?.display_name ?? sessionUsername,
+          avatarUrl: null,
+          avatarColor: getUserColor(session.user.id),
+          bio: null,
+          favoriteTeams: [],
+          following: [],
+          followers: [],
+          gamesLogged: 0,
+          reviewCount: 0,
+          joinedDate: session.user.created_at,
+        }
+        return { user: minimalUser, reviews: [], sessionUsername }
+      }
       throw notFound()
     }
   },
@@ -30,7 +48,7 @@ type ProfileTab = 'games' | 'reviews'
 
 function ProfilePage() {
   const { user, reviews, sessionUsername } = Route.useLoaderData()
-  const isMe = !!sessionUsername && (user.username === sessionUsername || user.id === MOCK_USERS[0]!.id && sessionUsername === MOCK_USERS[0]!.username)
+  const isMe = !!sessionUsername && user.username === sessionUsername
   const [following, setFollowing] = useState(MOCK_USERS[0]!.following.includes(user.id))
   const [tab, setTab] = useState<ProfileTab>('games')
 
