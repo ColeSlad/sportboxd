@@ -94,7 +94,36 @@ export async function bdlFetchGame(id) {
 // We fetch the two most recent seasons so there's always something to show
 // even if BDL hasn't indexed the current season yet.
 export const CURRENT_SEASON = 2025;
-const FALLBACK_SEASON = 2024;
+const statsCache = new Map();
+export async function fetchBoxScore(gameId) {
+    if (statsCache.has(gameId))
+        return statsCache.get(gameId);
+    const url = new URL(`${BASE}/stats`);
+    url.searchParams.append('game_ids[]', String(gameId));
+    url.searchParams.set('per_page', '100');
+    const res = await fetch(url.toString(), { headers: bdlHeaders() });
+    if (!res.ok)
+        throw new Error(`BDL stats ${res.status}`);
+    const { data } = await res.json();
+    const rows = data
+        .filter((s) => s.min && s.min !== '00' && s.min !== '0:00')
+        .map((s) => ({
+        player: `${s.player.first_name[0]}. ${s.player.last_name}`,
+        team: normalizeBDLAbbr(s.team.abbreviation),
+        min: s.min.includes(':') ? s.min.split(':')[0] : s.min,
+        pts: s.pts,
+        reb: s.reb,
+        ast: s.ast,
+        stl: s.stl,
+        blk: s.blk,
+        fgPct: s.fga > 0 ? ((s.fg_pct ?? 0) * 100).toFixed(1) : '—',
+        fg3Pct: s.fg3a > 0 ? ((s.fg3_pct ?? 0) * 100).toFixed(1) : '—',
+        to: s.turnover,
+    }))
+        .sort((a, b) => b.pts - a.pts);
+    statsCache.set(gameId, rows);
+    return rows;
+}
 // ─── Cache (in-memory + localStorage, 5-min TTL) ─────────────────────────────
 // In-memory: survives filter changes within a session without re-fetching.
 // localStorage: survives page refreshes — critical for staying under the

@@ -1,5 +1,7 @@
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { fetchBoxScore } from '~/lib/nba'
+import type { BoxScoreRow } from '~/lib/nba'
 import { getGameDetail, fetchGameReviews, submitReview } from '~/lib/api'
 import { supabase } from '~/lib/supabase'
 import { getTeam } from '~/lib/teams'
@@ -205,11 +207,7 @@ function GameDetailPage() {
 
         {tab === 'boxscore' && (
           <div className="fade-in overflow-x-auto">
-            <BoxScoreTable homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
-            <p className="mt-3 text-[0.72rem] text-gray-700 border-l-[3px] border-border pl-3 py-2 bg-bg-card2 rounded-r-md">
-              <strong className="text-gray-500">Dev note:</strong> Fetch real stats via{' '}
-              <code className="text-accent">src/lib/nba.ts → fetchBoxScore(gameId)</code>.
-            </p>
+            <BoxScoreTable gameId={game.id} homeTeam={game.homeTeam} awayTeam={game.awayTeam} />
           </div>
         )}
       </div>
@@ -292,47 +290,69 @@ function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit
   )
 }
 
-const MOCK_STATS = [
-  { player: 'J. Brown', team: 'BOS', min: '38', pts: 21, reb: 8, ast: 4, fgPct: '51.2', fg3Pct: '40.0', stl: 1, blk: 0 },
-  { player: 'J. Tatum', team: 'BOS', min: '40', pts: 17, reb: 9, ast: 6, fgPct: '44.8', fg3Pct: '33.3', stl: 2, blk: 1 },
-  { player: 'J. Holiday', team: 'BOS', min: '36', pts: 9, reb: 5, ast: 7, fgPct: '47.6', fg3Pct: '28.6', stl: 3, blk: 1 },
-  { player: 'L. Doncic', team: 'DAL', min: '42', pts: 29, reb: 10, ast: 8, fgPct: '43.2', fg3Pct: '30.8', stl: 1, blk: 0 },
-  { player: 'K. Irving', team: 'DAL', min: '38', pts: 23, reb: 3, ast: 5, fgPct: '52.0', fg3Pct: '44.4', stl: 0, blk: 1 },
-]
+function BoxScoreTable({ gameId, homeTeam, awayTeam }: { gameId: number; homeTeam: string; awayTeam: string }) {
+  const [rows, setRows] = useState<BoxScoreRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-function BoxScoreTable({ homeTeam, awayTeam }: { homeTeam: string; awayTeam: string }) {
+  useEffect(() => {
+    fetchBoxScore(gameId).then(setRows).catch((e: Error) => setError(e.message))
+  }, [gameId])
+
+  if (error === 'BDL_UPGRADE_REQUIRED') return (
+    <div className="py-12 text-center text-gray-600">
+      <p className="text-sm mb-1">Box scores require a paid balldontlie.io plan.</p>
+      <p className="text-[0.75rem] text-gray-700">Upgrade at balldontlie.io to unlock player stats.</p>
+    </div>
+  )
+  if (error) return <div className="py-12 text-center text-gray-600">Stats not available for this game.</div>
+  if (!rows) return <div className="py-12 text-center text-gray-600 animate-pulse">Loading stats…</div>
+  if (rows.length === 0) return <div className="py-12 text-center text-gray-600">No stats available — game may not have started yet.</div>
+
+  const awayRows = rows.filter((r) => r.team === awayTeam)
+  const homeRows = rows.filter((r) => r.team === homeTeam)
+
   return (
-    <table className="w-full border-collapse text-[0.82rem]">
-      <thead>
-        <tr className="border-b border-border">
-          {['Player', 'MIN', 'PTS', 'REB', 'AST', 'FG%', '3P%', 'STL', 'BLK'].map((col) => (
-            <th key={col} className="pb-2 pt-1 text-[0.68rem] font-condensed font-bold tracking-widest uppercase text-gray-600 whitespace-nowrap"
-              style={{ textAlign: col === 'Player' ? 'left' : 'right', padding: '6px 10px' }}>
-              {col}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {MOCK_STATS.map((row) => (
-          <tr key={row.player} className="border-b border-border/50 hover:bg-bg-card2 transition-colors">
-            <td className="py-2.5 px-2.5">
-              <div className="flex items-center gap-2">
-                <TeamLogo abbr={row.team} size={18} />
-                <span className="font-medium">{row.player}</span>
-              </div>
-            </td>
-            <td className="py-2.5 px-2.5 text-right text-gray-600">{row.min}</td>
-            <td className="py-2.5 px-2.5 text-right font-bold">{row.pts}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.reb}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.ast}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.fgPct}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.fg3Pct}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.stl}</td>
-            <td className="py-2.5 px-2.5 text-right">{row.blk}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="flex flex-col gap-6">
+      {[{ abbr: awayTeam, rows: awayRows }, { abbr: homeTeam, rows: homeRows }].map(({ abbr, rows: teamRows }) => (
+        <div key={abbr}>
+          <div className="flex items-center gap-2 mb-2">
+            <TeamLogo abbr={abbr} size={18} />
+            <span className="font-condensed font-bold tracking-widest uppercase text-[0.72rem] text-gray-500">
+              {getTeam(abbr).city} {getTeam(abbr).name}
+            </span>
+          </div>
+          <table className="w-full border-collapse text-[0.82rem]">
+            <thead>
+              <tr className="border-b border-border">
+                {['Player', 'MIN', 'PTS', 'REB', 'AST', 'FG%', '3P%', 'STL', 'BLK'].map((col) => (
+                  <th key={col}
+                    className="pb-2 pt-1 text-[0.68rem] font-condensed font-bold tracking-widest uppercase text-gray-600 whitespace-nowrap"
+                    style={{ textAlign: col === 'Player' ? 'left' : 'right', padding: '6px 8px' }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {teamRows.map((row) => (
+                <tr key={row.player} className="border-b border-border/50 hover:bg-bg-card2 transition-colors">
+                  <td className="py-2 px-2">
+                    <span className="font-medium">{row.player}</span>
+                  </td>
+                  <td className="py-2 px-2 text-right text-gray-600">{row.min}</td>
+                  <td className="py-2 px-2 text-right font-bold">{row.pts}</td>
+                  <td className="py-2 px-2 text-right">{row.reb}</td>
+                  <td className="py-2 px-2 text-right">{row.ast}</td>
+                  <td className="py-2 px-2 text-right">{row.fgPct}</td>
+                  <td className="py-2 px-2 text-right">{row.fg3Pct}</td>
+                  <td className="py-2 px-2 text-right">{row.stl}</td>
+                  <td className="py-2 px-2 text-right">{row.blk}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
   )
 }
