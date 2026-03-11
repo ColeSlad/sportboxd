@@ -2,6 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { getGameDetail, fetchGameReviews, submitReview } from '~/lib/api';
+import { supabase } from '~/lib/supabase';
 import { getTeam } from '~/lib/teams';
 import { formatDate, formatNumber } from '~/lib/utils';
 import { TeamLogo } from '~/components/TeamLogo';
@@ -15,23 +16,27 @@ export const Route = createFileRoute('/games/$gameId')({
         const id = Number(params.gameId);
         if (isNaN(id))
             throw notFound();
-        const [detail, reviews] = await Promise.all([
+        const [detail, reviews, { data: { session } }] = await Promise.all([
             getGameDetail(id),
             fetchGameReviews(id),
+            supabase.auth.getSession(),
         ]);
-        return { ...detail, reviews };
+        const myReview = session
+            ? reviews.find((r) => r.userId === session.user.id) ?? null
+            : null;
+        return { ...detail, reviews, myReview };
     },
     component: GameDetailPage,
     notFoundComponent: () => _jsx("div", { className: "text-center py-24 text-gray-500", children: "Game not found." }),
 });
 function GameDetailPage() {
-    const { game, plays, reviews: initialReviews } = Route.useLoaderData();
+    const { game, plays, reviews: initialReviews, myReview } = Route.useLoaderData();
     const { user: authUser } = useAuth();
     const navigate = useNavigate();
     const [tab, setTab] = useState('reviews');
     const [showLogModal, setShowLogModal] = useState(false);
-    const [isLogged, setIsLogged] = useState(false);
-    const [myRating, setMyRating] = useState(0);
+    const [isLogged, setIsLogged] = useState(!!myReview);
+    const [myRating, setMyRating] = useState(myReview?.rating ?? 0);
     const [reviews, setReviews] = useState(initialReviews);
     const home = getTeam(game.homeTeam);
     const away = getTeam(game.awayTeam);
@@ -48,7 +53,9 @@ function GameDetailPage() {
     }
     async function handleSubmitReview(rating, text) {
         const newReview = await submitReview({ gameId: game.id, rating, text: text || undefined });
-        setReviews((prev) => [newReview, ...prev]);
+        setReviews((prev) => prev.some((r) => r.userId === newReview.userId)
+            ? prev.map((r) => (r.userId === newReview.userId ? newReview : r))
+            : [newReview, ...prev]);
         setIsLogged(true);
         setMyRating(rating);
         setShowLogModal(false);
@@ -62,11 +69,11 @@ function GameDetailPage() {
                                     : reviews.map((r) => {
                                         const highlight = r.playHighlight ? plays.find((p) => p.id === r.playHighlight) : undefined;
                                         return _jsx(ReviewCard, { review: r, highlightedPlay: highlight }, r.id);
-                                    }) })] })), tab === 'plays' && (_jsxs("div", { className: "fade-in", children: [_jsx("p", { className: "text-[0.82rem] text-gray-600 mb-4", children: "Rate individual plays \u2014 the key differentiator on Fixture." }), _jsx("div", { className: "flex flex-col gap-3", children: plays.map((p) => _jsx(PlayCard, { play: p, gameId: game.id }, p.id)) }), _jsxs("div", { className: "mt-4 px-3 py-3 bg-bg-card2 rounded-lg text-[0.72rem] text-gray-700 border-l-[3px] border-border", children: [_jsx("strong", { className: "text-gray-500", children: "Dev note:" }), " Play-by-play is currently mocked. Connect ", _jsx("code", { className: "text-accent", children: "src/lib/nba.ts \u2192 fetchPlayByPlay()" }), " or SportRadar."] })] })), tab === 'boxscore' && (_jsxs("div", { className: "fade-in overflow-x-auto", children: [_jsx(BoxScoreTable, { homeTeam: game.homeTeam, awayTeam: game.awayTeam }), _jsxs("p", { className: "mt-3 text-[0.72rem] text-gray-700 border-l-[3px] border-border pl-3 py-2 bg-bg-card2 rounded-r-md", children: [_jsx("strong", { className: "text-gray-500", children: "Dev note:" }), " Fetch real stats via", ' ', _jsx("code", { className: "text-accent", children: "src/lib/nba.ts \u2192 fetchBoxScore(gameId)" }), "."] })] }))] }), showLogModal && (_jsx(LogModal, { game: game, onClose: () => setShowLogModal(false), onSubmit: handleSubmitReview }))] }));
+                                    }) })] })), tab === 'plays' && (_jsxs("div", { className: "fade-in", children: [_jsx("p", { className: "text-[0.82rem] text-gray-600 mb-4", children: "Rate individual plays \u2014 the key differentiator on Fixture." }), _jsx("div", { className: "flex flex-col gap-3", children: plays.map((p) => _jsx(PlayCard, { play: p, gameId: game.id }, p.id)) }), _jsxs("div", { className: "mt-4 px-3 py-3 bg-bg-card2 rounded-lg text-[0.72rem] text-gray-700 border-l-[3px] border-border", children: [_jsx("strong", { className: "text-gray-500", children: "Dev note:" }), " Play-by-play is currently mocked. Connect ", _jsx("code", { className: "text-accent", children: "src/lib/nba.ts \u2192 fetchPlayByPlay()" }), " or SportRadar."] })] })), tab === 'boxscore' && (_jsxs("div", { className: "fade-in overflow-x-auto", children: [_jsx(BoxScoreTable, { homeTeam: game.homeTeam, awayTeam: game.awayTeam }), _jsxs("p", { className: "mt-3 text-[0.72rem] text-gray-700 border-l-[3px] border-border pl-3 py-2 bg-bg-card2 rounded-r-md", children: [_jsx("strong", { className: "text-gray-500", children: "Dev note:" }), " Fetch real stats via", ' ', _jsx("code", { className: "text-accent", children: "src/lib/nba.ts \u2192 fetchBoxScore(gameId)" }), "."] })] }))] }), showLogModal && (_jsx(LogModal, { game: game, initialRating: myRating, initialText: myReview?.text ?? '', onClose: () => setShowLogModal(false), onSubmit: handleSubmitReview }))] }));
 }
-function LogModal({ game, onClose, onSubmit }) {
-    const [rating, setRating] = useState(0);
-    const [text, setText] = useState('');
+function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit }) {
+    const [rating, setRating] = useState(initialRating);
+    const [text, setText] = useState(initialText);
     const [saving, setSaving] = useState(false);
     const LABELS = ['', 'Boring — skip it', 'Below average', 'Worth watching', 'Really good', 'All-time classic'];
     async function handleSubmit() {

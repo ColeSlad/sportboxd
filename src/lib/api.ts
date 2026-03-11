@@ -197,6 +197,26 @@ export async function fetchProfile(username: string) {
   return { user, reviews }
 }
 
+export async function updateProfile(data: {
+  displayName: string
+  bio: string
+  favoriteTeams: string[]
+}): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      display_name: data.displayName.trim() || session.user.email?.split('@')[0],
+      bio: data.bio.trim() || null,
+      favorite_teams: data.favoriteTeams,
+    })
+    .eq('id', session.user.id)
+
+  if (error) throw error
+}
+
 export async function fetchSuggestedUsers(excludeId: string): Promise<AppUser[]> {
   const { data } = await supabase
     .from('profiles')

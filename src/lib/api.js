@@ -152,6 +152,21 @@ export async function fetchProfile(username) {
     const reviews = (reviewRows ?? []).map(dbRowToReview);
     return { user, reviews };
 }
+export async function updateProfile(data) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session)
+        throw new Error('Not authenticated');
+    const { error } = await supabase
+        .from('profiles')
+        .update({
+        display_name: data.displayName.trim() || session.user.email?.split('@')[0],
+        bio: data.bio.trim() || null,
+        favorite_teams: data.favoriteTeams,
+    })
+        .eq('id', session.user.id);
+    if (error)
+        throw error;
+}
 export async function fetchSuggestedUsers(excludeId) {
     const { data } = await supabase
         .from('profiles')
