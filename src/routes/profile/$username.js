@@ -1,7 +1,8 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { createFileRoute, Link, notFound, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import { fetchProfile, followUser, updateProfile } from '~/lib/api';
+import { bdlFetchGame, bdlGameToGame } from '~/lib/nba';
 import { getTeam, TEAMS } from '~/lib/teams';
 import { formatDate, formatNumber } from '~/lib/utils';
 import { TeamLogo } from '~/components/TeamLogo';
@@ -16,7 +17,18 @@ export const Route = createFileRoute('/profile/$username')({
         const sessionUserId = session?.user.id ?? null;
         try {
             const data = await fetchProfile(params.username);
-            return { ...data, sessionUsername, sessionUserId };
+            // Fetch game details for each reviewed game (uses in-memory cache)
+            const gameIds = [...new Set(data.reviews.map((r) => r.gameId))];
+            const gameEntries = await Promise.all(gameIds.map(async (id) => {
+                try {
+                    return [id, bdlGameToGame(await bdlFetchGame(id))];
+                }
+                catch {
+                    return null;
+                }
+            }));
+            const games = Object.fromEntries(gameEntries.filter(Boolean));
+            return { ...data, sessionUsername, sessionUserId, games };
         }
         catch {
             if (session && params.username === sessionUsername) {
@@ -34,7 +46,7 @@ export const Route = createFileRoute('/profile/$username')({
                     reviewCount: 0,
                     joinedDate: session.user.created_at,
                 };
-                return { user: minimalUser, reviews: [], sessionUsername, sessionUserId };
+                return { user: minimalUser, reviews: [], sessionUsername, sessionUserId, games: {} };
             }
             throw notFound();
         }
@@ -43,7 +55,7 @@ export const Route = createFileRoute('/profile/$username')({
     notFoundComponent: () => _jsx("div", { className: "text-center py-24 text-gray-500", children: "User not found." }),
 });
 function ProfilePage() {
-    const { user: initialUser, reviews, sessionUsername, sessionUserId } = Route.useLoaderData();
+    const { user: initialUser, reviews, sessionUsername, sessionUserId, games } = Route.useLoaderData();
     const router = useRouter();
     const isMe = !!sessionUsername && initialUser.username === sessionUsername;
     const isFollowing = !!sessionUserId && initialUser.followers.includes(sessionUserId);
@@ -82,9 +94,9 @@ function ProfilePage() {
                         { id: 'reviews', label: `Reviews (${reviews.length})` },
                     ].map((t) => (_jsx("button", { onClick: () => setTab(t.id), className: `tab ${tab === t.id ? 'tab-active' : ''}`, style: { background: 'none', border: 'none' }, children: t.label }, t.id))) }) }), tab === 'games' && (_jsx("div", { className: "fade-in flex flex-col gap-3", children: reviews.length === 0
                     ? _jsx(EmptyState, { text: "No logged games yet." })
-                    : reviews.map((r) => _jsx(ProfileReviewRow, { review: r }, r.id)) })), tab === 'reviews' && (_jsx("div", { className: "fade-in flex flex-col gap-3", children: reviews.length === 0
+                    : reviews.map((r) => _jsx(ProfileReviewRow, { review: r, game: games[r.gameId] }, r.id)) })), tab === 'reviews' && (_jsx("div", { className: "fade-in flex flex-col gap-3", children: reviews.length === 0
                     ? _jsx(EmptyState, { text: "No reviews yet." })
-                    : reviews.map((r) => _jsx(ProfileReviewRow, { review: r }, r.id)) })), showEditModal && (_jsx(EditProfileModal, { user: user, onClose: () => setShowEditModal(false), onSave: handleSaveProfile }))] }));
+                    : reviews.map((r) => _jsx(ProfileReviewRow, { review: r, game: games[r.gameId] }, r.id)) })), showEditModal && (_jsx(EditProfileModal, { user: user, onClose: () => setShowEditModal(false), onSave: handleSaveProfile }))] }));
 }
 function EditProfileModal({ user, onClose, onSave }) {
     const [displayName, setDisplayName] = useState(user.displayName);
@@ -111,8 +123,11 @@ function EditProfileModal({ user, onClose, onSave }) {
                                             : 'border-border hover:border-white/20 bg-bg-card2'} ${maxed ? 'opacity-40 cursor-not-allowed' : ''}`, children: [_jsx(TeamLogo, { abbr: team.abbr, size: 28 }), _jsx("span", { className: "text-[0.55rem] font-condensed font-bold text-gray-600 leading-none", children: team.abbr })] }, team.abbr));
                                 }) })] }), _jsxs("div", { className: "flex gap-3", children: [_jsx("button", { className: "btn btn-ghost flex-1", onClick: onClose, children: "Cancel" }), _jsx("button", { className: "btn btn-primary flex-[2]", onClick: handleSave, disabled: saving, children: saving ? 'Saving…' : 'Save Changes' })] })] }) }) }));
 }
-function ProfileReviewRow({ review }) {
-    return (_jsxs("div", { className: "card p-4", children: [_jsxs("div", { className: "flex items-start justify-between mb-2 gap-3 flex-wrap", children: [_jsxs(Link, { to: "/games/$gameId", params: { gameId: String(review.gameId) }, className: "text-accent font-semibold text-[0.9rem] hover:brightness-125 transition-all", children: ["Game #", review.gameId] }), _jsx(StarRating, { value: review.rating, readOnly: true, size: "sm" })] }), _jsx("div", { className: "text-[0.72rem] text-gray-600 mb-2", children: formatDate(review.createdAt) }), review.text && _jsx("p", { className: "text-[0.83rem] text-gray-500 leading-relaxed", children: review.text })] }));
+function ProfileReviewRow({ review, game }) {
+    const label = game
+        ? `${getTeam(game.awayTeam).name} @ ${getTeam(game.homeTeam).name}`
+        : `Game #${review.gameId}`;
+    return (_jsxs("div", { className: "card p-4", children: [_jsxs("div", { className: "flex items-start justify-between mb-2 gap-3 flex-wrap", children: [_jsxs("div", { className: "flex items-center gap-2 min-w-0", children: [game && _jsxs(_Fragment, { children: [_jsx(TeamLogo, { abbr: game.awayTeam, size: 16 }), _jsx(TeamLogo, { abbr: game.homeTeam, size: 16 })] }), _jsx(Link, { to: "/games/$gameId", params: { gameId: String(review.gameId) }, className: "text-accent font-semibold text-[0.9rem] hover:brightness-125 transition-all truncate", children: label })] }), _jsx(StarRating, { value: review.rating, readOnly: true, size: "sm" })] }), _jsxs("div", { className: "text-[0.72rem] text-gray-600 mb-2", children: [game && _jsxs("span", { className: "score-num text-[0.88rem] text-gray-500 mr-2", children: [game.awayScore, "\u2013", game.homeScore] }), game ? formatDate(game.date) : formatDate(review.createdAt)] }), review.text && _jsx("p", { className: "text-[0.83rem] text-gray-500 leading-relaxed", children: review.text })] }));
 }
 function EmptyState({ text }) {
     return (_jsxs("div", { className: "text-center py-16 text-gray-600", children: [_jsx("div", { className: "text-3xl mb-3", children: "\uD83C\uDFC0" }), _jsx("p", { className: "text-sm", children: text })] }));

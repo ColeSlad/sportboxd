@@ -102,6 +102,8 @@ export async function fetchBoxScore(gameId) {
     url.searchParams.append('game_ids[]', String(gameId));
     url.searchParams.set('per_page', '100');
     const res = await fetch(url.toString(), { headers: bdlHeaders() });
+    if (res.status === 401 || res.status === 403)
+        throw new Error('BDL_UPGRADE_REQUIRED');
     if (!res.ok)
         throw new Error(`BDL stats ${res.status}`);
     const { data } = await res.json();

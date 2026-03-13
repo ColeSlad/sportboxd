@@ -18,7 +18,16 @@ export const Route = createFileRoute('/profile/$username')({
     const sessionUserId = session?.user.id ?? null
     try {
       const data = await fetchProfile(params.username)
-      return { ...data, sessionUsername, sessionUserId }
+      // Fetch game details for each reviewed game (uses in-memory cache)
+      const gameIds = [...new Set(data.reviews.map((r) => r.gameId))]
+      const gameEntries = await Promise.all(
+        gameIds.map(async (id) => {
+          try { return [id, bdlGameToGame(await bdlFetchGame(id))] as const }
+          catch { return null }
+        }),
+      )
+      const games = Object.fromEntries(gameEntries.filter(Boolean) as [number, Game][])
+      return { ...data, sessionUsername, sessionUserId, games }
     } catch {
       if (session && params.username === sessionUsername) {
         const minimalUser: AppUser = {
@@ -35,7 +44,7 @@ export const Route = createFileRoute('/profile/$username')({
           reviewCount: 0,
           joinedDate: session.user.created_at,
         }
-        return { user: minimalUser, reviews: [], sessionUsername, sessionUserId }
+        return { user: minimalUser, reviews: [], sessionUsername, sessionUserId, games: {} }
       }
       throw notFound()
     }
@@ -47,7 +56,7 @@ export const Route = createFileRoute('/profile/$username')({
 type ProfileTab = 'games' | 'reviews'
 
 function ProfilePage() {
-  const { user: initialUser, reviews, sessionUsername, sessionUserId } = Route.useLoaderData()
+  const { user: initialUser, reviews, sessionUsername, sessionUserId, games } = Route.useLoaderData()
   const router = useRouter()
   const isMe = !!sessionUsername && initialUser.username === sessionUsername
   const isFollowing = !!sessionUserId && initialUser.followers.includes(sessionUserId)
@@ -144,14 +153,14 @@ function ProfilePage() {
         <div className="fade-in flex flex-col gap-3">
           {reviews.length === 0
             ? <EmptyState text="No logged games yet." />
-            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} />)}
+            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
         </div>
       )}
       {tab === 'reviews' && (
         <div className="fade-in flex flex-col gap-3">
           {reviews.length === 0
             ? <EmptyState text="No reviews yet." />
-            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} />)}
+            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
         </div>
       )}
 
@@ -268,17 +277,27 @@ function EditProfileModal({ user, onClose, onSave }: {
   )
 }
 
-function ProfileReviewRow({ review }: { review: Review }) {
+function ProfileReviewRow({ review, game }: { review: Review; game?: Game }) {
+  const label = game
+    ? `${getTeam(game.awayTeam).name} @ ${getTeam(game.homeTeam).name}`
+    : `Game #${review.gameId}`
+
   return (
     <div className="card p-4">
       <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
-        <Link to="/games/$gameId" params={{ gameId: String(review.gameId) }}
-          className="text-accent font-semibold text-[0.9rem] hover:brightness-125 transition-all">
-          Game #{review.gameId}
-        </Link>
+        <div className="flex items-center gap-2 min-w-0">
+          {game && <><TeamLogo abbr={game.awayTeam} size={16} /><TeamLogo abbr={game.homeTeam} size={16} /></>}
+          <Link to="/games/$gameId" params={{ gameId: String(review.gameId) }}
+            className="text-accent font-semibold text-[0.9rem] hover:brightness-125 transition-all truncate">
+            {label}
+          </Link>
+        </div>
         <StarRating value={review.rating} readOnly size="sm" />
       </div>
-      <div className="text-[0.72rem] text-gray-600 mb-2">{formatDate(review.createdAt)}</div>
+      <div className="text-[0.72rem] text-gray-600 mb-2">
+        {game && <span className="score-num text-[0.88rem] text-gray-500 mr-2">{game.awayScore}–{game.homeScore}</span>}
+        {game ? formatDate(game.date) : formatDate(review.createdAt)}
+      </div>
       {review.text && <p className="text-[0.83rem] text-gray-500 leading-relaxed">{review.text}</p>}
     </div>
   )
