@@ -142,10 +142,11 @@ function GameDetailPage() {
             </div>
             <div className="flex flex-col items-center gap-2 flex-shrink-0 min-w-[120px]">
               {isLogged ? (
-                <>
-                  <div className="text-[0.75rem] font-condensed font-bold text-accent tracking-wider">✓ Logged</div>
+                <button onClick={openLogModal} className="flex flex-col items-center gap-1 group">
+                  <div className="text-[0.75rem] font-condensed font-bold text-accent tracking-wider group-hover:brightness-125 transition-all">✓ Logged</div>
                   <StarRating value={myRating} readOnly size="sm" accent />
-                </>
+                  <span className="text-[0.62rem] text-gray-700 group-hover:text-gray-500 transition-colors">Edit review</span>
+                </button>
               ) : (
                 <button className="btn btn-primary w-full" onClick={openLogModal}>+ Log Game</button>
               )}

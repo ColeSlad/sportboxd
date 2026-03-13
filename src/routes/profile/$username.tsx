@@ -1,6 +1,7 @@
 import { createFileRoute, Link, notFound, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { fetchProfile, followUser, updateProfile } from '~/lib/api'
+import { bdlFetchGame, bdlGameToGame } from '~/lib/nba'
 import { getTeam, TEAMS } from '~/lib/teams'
 import { formatDate, formatNumber } from '~/lib/utils'
 import { TeamLogo } from '~/components/TeamLogo'
@@ -8,7 +9,7 @@ import { UserAvatar } from '~/components/UserAvatar'
 import { StarRating } from '~/components/StarRating'
 import { supabase, getUserColor } from '~/lib/supabase'
 import { X } from 'lucide-react'
-import type { AppUser, Review } from '~/lib/types'
+import type { AppUser, Game, Review } from '~/lib/types'
 
 export const Route = createFileRoute('/profile/$username')({
   loader: async ({ params }) => {
