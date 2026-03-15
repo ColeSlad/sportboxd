@@ -13,13 +13,13 @@ interface ReviewCardProps {
 
 export function ReviewCard({ review, highlightedPlay }: ReviewCardProps) {
   const [likes, setLikes] = useState(review.likes)
-  const [liked, setLiked] = useState(false)
+  const [liked, setLiked] = useState(review.likedByMe)
 
   async function handleLike() {
-    if (liked) return
-    setLiked(true)
-    setLikes((n) => n + 1)
-    await toggleLike(review.id)
+    const next = !liked
+    setLiked(next)
+    setLikes((n) => n + (next ? 1 : -1))
+    await toggleLike(review.id, next)
   }
 
   return (

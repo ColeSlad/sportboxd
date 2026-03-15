@@ -122,6 +122,7 @@ export interface Review {
   text: string | null
   createdAt: string
   likes: number
+  likedByMe: boolean
   playHighlight: string | null // playId
   user: AppUser
 }

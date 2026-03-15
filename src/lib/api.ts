@@ -31,7 +31,7 @@ function profileToAppUser(profile: Record<string, unknown>): AppUser {
   }
 }
 
-function dbRowToReview(row: Record<string, unknown>): Review {
+function dbRowToReview(row: Record<string, unknown>, myUserId?: string | null): Review {
   return {
     id: row.id as string,
     gameId: row.game_id as number,
@@ -39,7 +39,8 @@ function dbRowToReview(row: Record<string, unknown>): Review {
     rating: row.rating as number,
     text: (row.text as string | null) ?? null,
     createdAt: row.created_at as string,
-    likes: 0,
+    likes: (row.like_count as number | null) ?? 0,
+    likedByMe: myUserId ? ((row.liked_by_me as boolean | null) ?? false) : false,
     playHighlight: null,
     user: profileToAppUser(row.profiles as Record<string, unknown>),
   }
@@ -100,9 +101,12 @@ export async function getGameDetail(id: number) {
 // ─── Reviews ─────────────────────────────────────────────────────────────────
 
 export async function fetchGameReviews(gameId: number): Promise<Review[]> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const myUserId = session?.user.id ?? null
+
   const { data, error } = await supabase
     .from('reviews')
-    .select('*, profiles(*)')
+    .select('*, profiles(*), review_likes(user_id)')
     .eq('game_id', gameId)
     .order('created_at', { ascending: false })
 
@@ -110,7 +114,13 @@ export async function fetchGameReviews(gameId: number): Promise<Review[]> {
     console.error('[fetchGameReviews]', error.message)
     return []
   }
-  return (data ?? []).map(dbRowToReview)
+  return (data ?? []).map((row) => {
+    const likeRows = (row.review_likes as { user_id: string }[]) ?? []
+    return dbRowToReview(
+      { ...row, like_count: likeRows.length, liked_by_me: likeRows.some((l) => l.user_id === myUserId) },
+      myUserId,
+    )
+  })
 }
 
 export async function submitReview(data: {
@@ -151,10 +161,21 @@ export async function submitPlayRating(data: {
   return { id: `pr-${Date.now()}`, ...data, userId: 'anon', note: data.note ?? null }
 }
 
-export async function toggleLike(reviewId: string) {
-  // TODO: upsert/delete from review_likes table
-  console.log('[toggleLike] stub:', reviewId)
-  return { liked: true }
+export async function toggleLike(reviewId: string, like: boolean) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+
+  if (like) {
+    await supabase
+      .from('review_likes')
+      .upsert({ review_id: reviewId, user_id: session.user.id })
+  } else {
+    await supabase
+      .from('review_likes')
+      .delete()
+      .eq('review_id', reviewId)
+      .eq('user_id', session.user.id)
+  }
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -193,7 +214,7 @@ export async function fetchProfile(username: string) {
     joinedDate: profile.created_at,
   }
 
-  const reviews: Review[] = (reviewRows ?? []).map(dbRowToReview)
+  const reviews: Review[] = (reviewRows ?? []).map((row) => dbRowToReview(row as Record<string, unknown>))
   return { user, reviews }
 }
 

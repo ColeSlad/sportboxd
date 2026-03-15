@@ -62,7 +62,22 @@ create policy "follows_insert" on public.follows for insert with check (auth.uid
 create policy "follows_delete" on public.follows for delete using (auth.uid() = follower_id);
 
 
--- ── 4. Auto-create profile on signup ─────────────────────────────────────────
+-- ── 4. Review likes ──────────────────────────────────────────────────────────
+
+create table if not exists public.review_likes (
+  review_id  uuid        not null references public.reviews(id) on delete cascade,
+  user_id    uuid        not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (review_id, user_id)
+);
+
+alter table public.review_likes enable row level security;
+create policy "review_likes_select" on public.review_likes for select using (true);
+create policy "review_likes_insert" on public.review_likes for insert with check (auth.uid() = user_id);
+create policy "review_likes_delete" on public.review_likes for delete using (auth.uid() = user_id);
+
+
+-- ── 6. Auto-create profile on signup ─────────────────────────────────────────
 -- Username defaults to the part before @ in the email address.
 
 create or replace function public.handle_new_user()
@@ -85,7 +100,7 @@ create or replace trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 
--- ── 5. Backfill profiles for any existing auth users ─────────────────────────
+-- ── 7. Backfill profiles for any existing auth users ─────────────────────────
 
 insert into public.profiles (id, username, display_name)
 select id, split_part(email, '@', 1), split_part(email, '@', 1)
