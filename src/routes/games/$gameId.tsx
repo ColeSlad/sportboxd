@@ -10,6 +10,7 @@ import { TeamLogo } from '~/components/TeamLogo'
 import { StarRating } from '~/components/StarRating'
 import { ReviewCard } from '~/components/ReviewCard'
 import { PlayCard } from '~/components/PlayCard'
+import { RouteError } from '~/components/RouteError'
 import { useAuth } from '~/lib/auth-context'
 import { ArrowLeft, X } from 'lucide-react'
 import type { Review } from '~/lib/types'
@@ -29,6 +30,7 @@ export const Route = createFileRoute('/games/$gameId')({
     return { ...detail, reviews, myReview }
   },
   component: GameDetailPage,
+  errorComponent: ({ error, reset }) => <RouteError error={error as Error} reset={reset} />,
   notFoundComponent: () => <div className="text-center py-24 text-gray-500">Game not found.</div>,
 })
 

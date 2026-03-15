@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { listGames } from '~/lib/api'
 import { GameCard } from '~/components/GameCard'
+import { RouteError } from '~/components/RouteError'
 import { TEAMS } from '~/lib/teams'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/browse')({
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => listGames({ type: deps.type, team: deps.team, search: deps.q, sort: deps.sort }),
   component: BrowsePage,
+  errorComponent: ({ error, reset }) => <RouteError error={error as Error} reset={reset} />,
 })
 
 const TYPE_FILTERS = [
