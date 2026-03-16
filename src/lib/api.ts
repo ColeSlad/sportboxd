@@ -248,6 +248,35 @@ export async function fetchSuggestedUsers(excludeId: string): Promise<AppUser[]>
   return (data ?? []).map(profileToAppUser)
 }
 
+async function reviewRowsToActivityItems(reviewRows: Record<string, unknown>[]): Promise<ActivityItem[]> {
+  if (!reviewRows.length) return []
+  // Fetch unique games from BDL (uses localStorage cache — free after first load)
+  const gameIds = [...new Set(reviewRows.map((r) => r.game_id as number))]
+  const gameMap = new Map<number, Game>()
+  await Promise.all(
+    gameIds.map(async (id) => {
+      try {
+        gameMap.set(id, bdlGameToGame(await bdlFetchGame(id)))
+      } catch {
+        // Game not available — skip
+      }
+    }),
+  )
+  return reviewRows
+    .filter((r) => gameMap.has(r.game_id as number))
+    .map((r): ActivityItem => ({
+      id: r.id as string,
+      userId: r.user_id as string,
+      type: 'review',
+      gameId: r.game_id as number,
+      rating: r.rating as number,
+      excerpt: (r.text as string | undefined) ?? undefined,
+      time: r.created_at as string,
+      user: profileToAppUser(r.profiles as Record<string, unknown>),
+      game: gameMap.get(r.game_id as number)!,
+    }))
+}
+
 export async function fetchFeed(userId: string): Promise<ActivityItem[]> {
   const { data: followingRows } = await supabase
     .from('follows')
@@ -265,34 +294,17 @@ export async function fetchFeed(userId: string): Promise<ActivityItem[]> {
     .order('created_at', { ascending: false })
     .limit(30)
 
-  if (!reviewRows?.length) return []
+  return reviewRowsToActivityItems((reviewRows ?? []) as Record<string, unknown>[])
+}
 
-  // Fetch unique games from BDL (uses localStorage cache — free after first load)
-  const gameIds = [...new Set(reviewRows.map((r: { game_id: number }) => r.game_id))]
-  const gameMap = new Map<number, Game>()
-  await Promise.all(
-    gameIds.map(async (id) => {
-      try {
-        gameMap.set(id, bdlGameToGame(await bdlFetchGame(id)))
-      } catch {
-        // Game not available — skip
-      }
-    }),
-  )
+export async function fetchAllActivity(): Promise<ActivityItem[]> {
+  const { data: reviewRows } = await supabase
+    .from('reviews')
+    .select('*, profiles(*)')
+    .order('created_at', { ascending: false })
+    .limit(30)
 
-  return reviewRows
-    .filter((r: { game_id: number }) => gameMap.has(r.game_id))
-    .map((r: Record<string, unknown>): ActivityItem => ({
-      id: r.id as string,
-      userId: r.user_id as string,
-      type: 'review',
-      gameId: r.game_id as number,
-      rating: r.rating as number,
-      excerpt: (r.text as string | undefined) ?? undefined,
-      time: r.created_at as string,
-      user: profileToAppUser(r.profiles as Record<string, unknown>),
-      game: gameMap.get(r.game_id as number)!,
-    }))
+  return reviewRowsToActivityItems((reviewRows ?? []) as Record<string, unknown>[])
 }
 
 export async function followUser(targetId: string, follow: boolean) {

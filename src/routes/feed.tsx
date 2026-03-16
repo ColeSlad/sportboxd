@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
-import { fetchFeed, fetchSuggestedUsers, followUser } from '~/lib/api'
+import { fetchFeed, fetchAllActivity, fetchSuggestedUsers, followUser } from '~/lib/api'
 import { UserAvatar } from '~/components/UserAvatar'
 import { StarRating } from '~/components/StarRating'
 import { TeamLogo } from '~/components/TeamLogo'
@@ -13,17 +13,18 @@ export const Route = createFileRoute('/feed')({
   loader: async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) throw redirect({ to: '/login' })
-    const [feed, suggested] = await Promise.all([
+    const [feed, allActivity, suggested] = await Promise.all([
       fetchFeed(session.user.id),
+      fetchAllActivity(),
       fetchSuggestedUsers(session.user.id),
     ])
-    return { feed, suggested }
+    return { feed, allActivity, suggested }
   },
   component: FeedPage,
 })
 
 function FeedPage() {
-  const { feed, suggested } = Route.useLoaderData()
+  const { feed, allActivity, suggested } = Route.useLoaderData()
   const [filter, setFilter] = useState<'following' | 'all'>('following')
 
   return (
@@ -47,9 +48,12 @@ function FeedPage() {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 min-w-0">
-          {feed.length === 0
-            ? <EmptyFeed />
-            : <div className="flex flex-col gap-3">{feed.map((item) => <FeedItem key={item.id} item={item} />)}</div>}
+          {(() => {
+            const items = filter === 'following' ? feed : allActivity
+            return items.length === 0
+              ? <EmptyFeed />
+              : <div className="flex flex-col gap-3">{items.map((item) => <FeedItem key={item.id} item={item} />)}</div>
+          })()}
         </div>
         {suggested.length > 0 && (
           <aside className="lg:w-64 flex-shrink-0">
