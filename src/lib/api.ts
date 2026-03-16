@@ -106,7 +106,7 @@ export async function fetchGameReviews(gameId: number): Promise<Review[]> {
 
   const { data, error } = await supabase
     .from('reviews')
-    .select('*, profiles(*), review_likes(user_id)')
+    .select('*, profiles!user_id(*), review_likes(user_id)')
     .eq('game_id', gameId)
     .order('created_at', { ascending: false })
 
@@ -143,7 +143,7 @@ export async function submitReview(data: {
       },
       { onConflict: 'game_id,user_id' },
     )
-    .select('*, profiles(*)')
+    .select('*, profiles!user_id(*)')
     .single()
 
   if (error) throw error
@@ -192,7 +192,7 @@ export async function fetchProfile(username: string) {
   const [{ data: reviewRows }, { data: followingRows }, { data: followerRows }] = await Promise.all([
     supabase
       .from('reviews')
-      .select('*, profiles(*)')
+      .select('*, profiles!user_id(*)')
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false }),
     supabase.from('follows').select('following_id').eq('follower_id', profile.id),
@@ -289,7 +289,7 @@ export async function fetchFeed(userId: string): Promise<ActivityItem[]> {
 
   const { data: reviewRows } = await supabase
     .from('reviews')
-    .select('*, profiles(*)')
+    .select('*, profiles!user_id(*)')
     .in('user_id', followingIds)
     .order('created_at', { ascending: false })
     .limit(30)
@@ -300,7 +300,7 @@ export async function fetchFeed(userId: string): Promise<ActivityItem[]> {
 export async function fetchAllActivity(): Promise<ActivityItem[]> {
   const { data: reviewRows } = await supabase
     .from('reviews')
-    .select('*, profiles(*)')
+    .select('*, profiles!user_id(*)')
     .order('created_at', { ascending: false })
     .limit(30)
 
