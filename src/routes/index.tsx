@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { getFeaturedGames, fetchGameReviews } from '~/lib/api'
 import { RouteError } from '~/components/RouteError'
+import { HomePending } from '~/components/Skeletons'
 import { GameCard } from '~/components/GameCard'
 import { StarRating } from '~/components/StarRating'
 import { UserAvatar } from '~/components/UserAvatar'
@@ -18,6 +19,8 @@ export const Route = createFileRoute('/')({
     return { featured, topReviews }
   },
   component: HomePage,
+  pendingComponent: HomePending,
+  pendingMs: 300,
   errorComponent: ({ error, reset }) => <RouteError error={error as Error} reset={reset} />,
 })
 

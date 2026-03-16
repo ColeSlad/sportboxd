@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { listGames } from '~/lib/api'
 import { GameCard } from '~/components/GameCard'
 import { RouteError } from '~/components/RouteError'
+import { BrowsePending } from '~/components/Skeletons'
 import { TEAMS } from '~/lib/teams'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
@@ -19,6 +20,8 @@ export const Route = createFileRoute('/browse')({
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => listGames({ type: deps.type, team: deps.team, search: deps.q, sort: deps.sort }),
   component: BrowsePage,
+  pendingComponent: BrowsePending,
+  pendingMs: 300,
   errorComponent: ({ error, reset }) => <RouteError error={error as Error} reset={reset} />,
 })
 

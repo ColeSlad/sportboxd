@@ -7,6 +7,7 @@ import { TeamLogo } from '~/components/TeamLogo'
 import { getTeam } from '~/lib/teams'
 import { formatRelativeTime, formatNumber } from '~/lib/utils'
 import { supabase } from '~/lib/supabase'
+import { FeedPending } from '~/components/Skeletons'
 import type { ActivityItem, AppUser } from '~/lib/types'
 
 export const Route = createFileRoute('/feed')({
@@ -21,6 +22,8 @@ export const Route = createFileRoute('/feed')({
     return { feed, allActivity, suggested }
   },
   component: FeedPage,
+  pendingComponent: FeedPending,
+  pendingMs: 300,
 })
 
 function FeedPage() {

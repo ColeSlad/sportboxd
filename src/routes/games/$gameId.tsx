@@ -11,6 +11,7 @@ import { StarRating } from '~/components/StarRating'
 import { ReviewCard } from '~/components/ReviewCard'
 import { PlayCard } from '~/components/PlayCard'
 import { RouteError } from '~/components/RouteError'
+import { GameDetailPending } from '~/components/Skeletons'
 import { useAuth } from '~/lib/auth-context'
 import { ArrowLeft, X } from 'lucide-react'
 import type { Review } from '~/lib/types'
@@ -30,6 +31,8 @@ export const Route = createFileRoute('/games/$gameId')({
     return { ...detail, reviews, myReview }
   },
   component: GameDetailPage,
+  pendingComponent: GameDetailPending,
+  pendingMs: 300,
   errorComponent: ({ error, reset }) => <RouteError error={error as Error} reset={reset} />,
   notFoundComponent: () => <div className="text-center py-24 text-gray-500">Game not found.</div>,
 })

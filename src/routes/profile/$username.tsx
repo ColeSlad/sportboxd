@@ -10,6 +10,7 @@ import { StarRating } from '~/components/StarRating'
 import { supabase, getUserColor } from '~/lib/supabase'
 import { X } from 'lucide-react'
 import type { AppUser, Game, Review } from '~/lib/types'
+import { ProfilePending } from '~/components/Skeletons'
 
 export const Route = createFileRoute('/profile/$username')({
   loader: async ({ params }) => {
@@ -50,6 +51,8 @@ export const Route = createFileRoute('/profile/$username')({
     }
   },
   component: ProfilePage,
+  pendingComponent: ProfilePending,
+  pendingMs: 300,
   notFoundComponent: () => <div className="text-center py-24 text-gray-500">User not found.</div>,
 })
 
