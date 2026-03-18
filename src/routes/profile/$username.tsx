@@ -122,12 +122,13 @@ function ProfilePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2.5 mb-6">
+      <div className="grid grid-cols-5 gap-2.5 mb-6">
         {[
           { label: 'Games', value: formatNumber(user.gamesLogged) },
           { label: 'Reviews', value: formatNumber(user.reviewCount) },
           { label: 'Avg Rating', value: avgRating },
           { label: 'Following', value: user.following.length },
+          { label: 'Followers', value: user.followers.length },
         ].map((s) => (
           <div key={s.label} className="card p-3 text-center">
             <div className="font-condensed font-bold text-accent text-[1.3rem]">{s.value}</div>

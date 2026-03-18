@@ -139,8 +139,8 @@ export function ProfilePending() {
         </div>
       </div>
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2.5 mb-6">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid grid-cols-5 gap-2.5 mb-6">
+        {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="card p-3 flex flex-col items-center gap-2">
             <Bone className="w-10 h-6" />
             <Bone className="w-14 h-2" />
