@@ -138,35 +138,42 @@ function ProfilePage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border mb-5">
-        <div className="flex gap-6">
-          {([
-            { id: 'games', label: `Games (${reviews.length})` },
-            { id: 'reviews', label: `Reviews (${reviews.length})` },
-          ] as { id: ProfileTab; label: string }[]).map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`tab ${tab === t.id ? 'tab-active' : ''}`}
-              style={{ background: 'none', border: 'none' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {(() => {
+        const withText = reviews.filter((r) => r.text)
+        return (
+          <>
+            <div className="border-b border-border mb-5">
+              <div className="flex gap-6">
+                {([
+                  { id: 'games', label: `Games (${reviews.length})` },
+                  { id: 'reviews', label: `Reviews (${withText.length})` },
+                ] as { id: ProfileTab; label: string }[]).map((t) => (
+                  <button key={t.id} onClick={() => setTab(t.id)}
+                    className={`tab ${tab === t.id ? 'tab-active' : ''}`}
+                    style={{ background: 'none', border: 'none' }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      {tab === 'games' && (
-        <div className="fade-in flex flex-col gap-3">
-          {reviews.length === 0
-            ? <EmptyState text="No logged games yet." />
-            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
-        </div>
-      )}
-      {tab === 'reviews' && (
-        <div className="fade-in flex flex-col gap-3">
-          {reviews.length === 0
-            ? <EmptyState text="No reviews yet." />
-            : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
-        </div>
-      )}
+            {tab === 'games' && (
+              <div className="fade-in flex flex-col gap-3">
+                {reviews.length === 0
+                  ? <EmptyState text="No logged games yet." />
+                  : reviews.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
+              </div>
+            )}
+            {tab === 'reviews' && (
+              <div className="fade-in flex flex-col gap-3">
+                {withText.length === 0
+                  ? <EmptyState text="No written reviews yet." />
+                  : withText.map((r) => <ProfileReviewRow key={r.id} review={r} game={games[r.gameId]} />)}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {showEditModal && (
         <EditProfileModal
