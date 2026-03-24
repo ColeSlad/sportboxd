@@ -5,18 +5,26 @@ import { HomePending } from '~/components/Skeletons'
 import { GameCard } from '~/components/GameCard'
 import { StarRating } from '~/components/StarRating'
 import { UserAvatar } from '~/components/UserAvatar'
-import { MOCK_GAMES } from '~/lib/mock-data'
+import { getTeam } from '~/lib/teams'
 import { formatRelativeTime } from '~/lib/utils'
-import type { Review } from '~/lib/types'
+import type { Game, Review } from '~/lib/types'
 
 export const Route = createFileRoute('/')({
   loader: async () => {
     const featured = await getFeaturedGames()
-    const allReviews = await Promise.all(
-      MOCK_GAMES.slice(0, 4).map((g) => fetchGameReviews(g.id)),
-    )
-    const topReviews = allReviews.flat().sort((a, b) => b.likes - a.likes).slice(0, 3)
-    return { featured, topReviews }
+    // Build a map of all real games we already have from BDL
+    const allGames = [...featured.featured, ...featured.trending, ...featured.recent]
+    const gamesMap: Record<number, Game> = {}
+    for (const g of allGames) gamesMap[g.id] = g
+    // Fetch reviews for the trending games (already cached from BDL call above)
+    const sampleIds = featured.trending.slice(0, 5).map((g) => g.id)
+    const allReviews = await Promise.all(sampleIds.map((id) => fetchGameReviews(id)))
+    const topReviews = allReviews
+      .flat()
+      .filter((r) => r.text) // only reviews with written text
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 3)
+    return { featured, topReviews, gamesMap }
   },
   component: HomePage,
   pendingComponent: HomePending,
@@ -31,12 +39,13 @@ const COMMUNITY_STATS = [
 ]
 
 function HomePage() {
-  const { featured, topReviews } = Route.useLoaderData()
+  const { featured, topReviews, gamesMap } = Route.useLoaderData()
+  const season = featured.trending[0]?.season ?? ''
   return (
     <div className="max-w-3xl mx-auto px-4 pb-24">
       {/* Hero */}
       <div className="py-14 text-center">
-        <span className="badge badge-green mb-4 inline-flex">2023–24 Season</span>
+        {season && <span className="badge badge-green mb-4 inline-flex">{season}</span>}
         <h1 className="font-display gradient-text text-[clamp(3rem,10vw,5.5rem)] leading-none mb-3">
           FIXTURE
         </h1>
@@ -71,7 +80,7 @@ function HomePage() {
 
       <Section title="Top Reviews">
         <div className="flex flex-col gap-3">
-          {topReviews.map((r) => <ReviewSnippet key={r.id} review={r} />)}
+          {topReviews.map((r) => <ReviewSnippet key={r.id} review={r} game={gamesMap[r.gameId]} />)}
         </div>
       </Section>
 
@@ -98,7 +107,10 @@ function Section({ title, href, children }: { title: string; href?: string; chil
   )
 }
 
-function ReviewSnippet({ review }: { review: Review }) {
+function ReviewSnippet({ review, game }: { review: Review; game?: Game }) {
+  const away = game ? getTeam(game.awayTeam) : null
+  const home = game ? getTeam(game.homeTeam) : null
+  const gameLabel = away && home ? `${away.name} @ ${home.name}` : `Game #${review.gameId}`
   return (
     <div className="card p-4">
       <div className="flex gap-3">
@@ -115,7 +127,7 @@ function ReviewSnippet({ review }: { review: Review }) {
               <span className="text-gray-600"> on </span>
               <Link to="/games/$gameId" params={{ gameId: String(review.gameId) }}
                 className="text-accent font-medium hover:brightness-125 transition-all">
-                Game #{review.gameId}
+                {gameLabel}
               </Link>
             </div>
             <StarRating value={review.rating} readOnly size="sm" />
