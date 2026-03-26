@@ -79,16 +79,30 @@ create policy "review_likes_delete" on public.review_likes for delete using (aut
 
 -- ── 6. Auto-create profile on signup ─────────────────────────────────────────
 -- Username defaults to the part before @ in the email address.
+-- Appends _2, _3, … if the base username is already taken.
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public
 as $$
+declare
+  base_username text;
+  candidate     text;
+  suffix        int := 2;
 begin
+  base_username := split_part(new.email, '@', 1);
+  candidate     := base_username;
+
+  -- Find a free username
+  while exists (select 1 from public.profiles where username = candidate) loop
+    candidate := base_username || '_' || suffix;
+    suffix    := suffix + 1;
+  end loop;
+
   insert into public.profiles (id, username, display_name)
   values (
     new.id,
-    split_part(new.email, '@', 1),
-    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1))
+    candidate,
+    coalesce(new.raw_user_meta_data->>'display_name', candidate)
   )
   on conflict (id) do nothing;
   return new;
