@@ -54,7 +54,7 @@ function FeedPage() {
           {(() => {
             const items = filter === 'following' ? feed : allActivity
             return items.length === 0
-              ? <EmptyFeed />
+              ? <EmptyFeed filter={filter} onShowAll={() => setFilter('all')} />
               : <div className="flex flex-col gap-3">{items.map((item) => <FeedItem key={item.id} item={item} />)}</div>
           })()}
         </div>
@@ -141,12 +141,21 @@ function SuggestedUser({ user }: { user: AppUser }) {
   )
 }
 
-function EmptyFeed() {
+function EmptyFeed({ filter, onShowAll }: { filter: 'following' | 'all'; onShowAll: () => void }) {
   return (
     <div className="text-center py-20 text-gray-600">
       <div className="text-4xl mb-4">👀</div>
-      <p className="text-sm mb-4">No activity yet. Follow other users to see what they're logging.</p>
-      <Link to="/browse" className="btn btn-primary btn-sm">Browse Games</Link>
+      <p className="text-sm mb-4">
+        {filter === 'following'
+          ? "You're not following anyone yet. Check out all recent activity or browse games."
+          : 'No activity yet. Be the first to log a game.'}
+      </p>
+      <div className="flex gap-2 justify-center">
+        {filter === 'following' && (
+          <button className="btn btn-primary btn-sm" onClick={onShowAll}>All Activity</button>
+        )}
+        <Link to="/browse" className="btn btn-ghost btn-sm">Browse Games</Link>
+      </div>
     </div>
   )
 }
