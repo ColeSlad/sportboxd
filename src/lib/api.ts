@@ -161,6 +161,11 @@ export async function submitPlayRating(data: {
   return { id: `pr-${Date.now()}`, ...data, userId: 'anon', note: data.note ?? null }
 }
 
+export async function deleteReview(reviewId: string) {
+  const { error } = await supabase.from('reviews').delete().eq('id', reviewId)
+  if (error) throw error
+}
+
 export async function toggleLike(reviewId: string, like: boolean) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return

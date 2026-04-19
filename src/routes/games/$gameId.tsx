@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound, useNavigate } from '@tanstack/react-ro
 import { useState, useEffect } from 'react'
 import { fetchBoxScore } from '~/lib/nba'
 import type { BoxScoreRow } from '~/lib/nba'
-import { getGameDetail, fetchGameReviews, submitReview } from '~/lib/api'
+import { getGameDetail, fetchGameReviews, submitReview, deleteReview } from '~/lib/api'
 import { supabase } from '~/lib/supabase'
 import { getTeam } from '~/lib/teams'
 import { formatDate, formatNumber } from '~/lib/utils'
@@ -71,6 +71,15 @@ function GameDetailPage() {
     )
     setIsLogged(true)
     setMyRating(rating)
+    setShowLogModal(false)
+  }
+
+  async function handleDeleteReview() {
+    if (!myReview) return
+    await deleteReview(myReview.id)
+    setReviews((prev) => prev.filter((r) => r.id !== myReview.id))
+    setIsLogged(false)
+    setMyRating(0)
     setShowLogModal(false)
   }
 
@@ -225,28 +234,38 @@ function GameDetailPage() {
           initialText={myReview?.text ?? ''}
           onClose={() => setShowLogModal(false)}
           onSubmit={handleSubmitReview}
+          onDelete={myReview ? handleDeleteReview : undefined}
         />
       )}
     </div>
   )
 }
 
-function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit }: {
+function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit, onDelete }: {
   game: ReturnType<typeof Route.useLoaderData>['game']
   initialRating?: number
   initialText?: string
   onClose: () => void
   onSubmit: (rating: number, text: string) => Promise<void>
+  onDelete?: () => Promise<void>
 }) {
   const [rating, setRating] = useState(initialRating)
   const [text, setText] = useState(initialText)
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const LABELS = ['', 'Boring — skip it', 'Below average', 'Worth watching', 'Really good', 'All-time classic']
 
   async function handleSubmit() {
     if (!rating) return
     setSaving(true)
     await onSubmit(rating, text)
+    setSaving(false)
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setSaving(true)
+    await onDelete!()
     setSaving(false)
   }
 
@@ -290,6 +309,17 @@ function LogModal({ game, initialRating = 0, initialText = '', onClose, onSubmit
               {saving ? 'Saving…' : rating === 0 ? 'Select a rating' : 'Log Game'}
             </button>
           </div>
+          {onDelete && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <button
+                className="text-[0.75rem] text-gray-700 hover:text-red-400 transition-colors w-full text-center"
+                disabled={saving}
+                onClick={handleDelete}
+              >
+                {confirmDelete ? 'Tap again to confirm deletion' : 'Remove this log'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
